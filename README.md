@@ -3,7 +3,7 @@ FOR NOT ITALIAN SPEAKERS: Translation in (bad) english will be performed in futu
 ---------------------------------------------------------------------------------------------------------------------------
 
 
-Chissà se questa è la sezione più esatta per progetti di questo tipo, quindi forse verrà spostato in futuro.
+Chissà se questa è la sezione più adatta per progetti di questo tipo, quindi forse verrà spostato in futuro.
 
 """
 Data 31/03/2024 - 23:00
