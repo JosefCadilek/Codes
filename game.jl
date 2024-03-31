@@ -1,3 +1,39 @@
+"""
+Data 31/03/2024 - 23:00
+
+Questa per ora è il file principale del programma, in seguito verrà adottata una struttura più complessa (immagino)
+
+Per ora ci sono stati questi obiettivi:
+1) Sviluppare un efficiente metodo di rappresentazione della scacchiera e dei pezzi attraverso la più semplice
+    delle possibilità (in termini di lavoro computazionale, non di facilità di scrittura).
+    SOLUZIONE:
+    Ritengo che l'opzione vincente sia quella delle bitboards ovvero 12 scacchiere che rappresentano ciascuna in bit
+    un insieme di pezzi di un certo colore.
+    (ci saranno varie migliorie nel tempo credo)
+
+2) Traduzione dalla notazione FEN in bitboards (non deve essere per forza ottimizzatissimo)
+3) Un modo basilare di visualizzare la scacchiera
+    In futuro verrà creata un'interfaccia grafica o in alternativa verrà implementato un bridge tra il motore e una gui esterna.
+    Ci sono insomma varie modalità, ma una cosa che sicuramente è nei piani futuri è quella di collegare il motore al sito lichess
+    e iscriverlo come BOT ufficiale. (ci sarà da decidere il suo nome)
+
+
+    OBIETTIVI FUTURI PIU' PROSSIMI:
+Ora sto studiando vari approcci per la generazione di mosse a partire dalle bitboards e il tema è vasto. Ci sono metodi brillanti
+che risolvono il problema e non è detto che non sia possibile migliorarli.
+La scelta vincente in questo caso è secondo me la generazione di mosse legali invece di quelle pseudo-legali.
+Ci sono motori infatti che calcolano mosse pseudo-legali, ossia magari muovono un cavallo, ma solo dopo valutano che è scacco e
+perciò la mossa è illegale.
+Questa a lungo andare è una scelta sicuramente perdente.
+E' necessaria la più veloce delle ricerche di mosse possibili in quanto le mosse da calcolare si moltiplicano a dismisura.
+Generare solo mosse legali attraverso le bitboards è possibile, ma nella programmazione ci vuole cautela e strategia.
+Per sfruttare la loro rappresentazionen conviene usare le bitwise operation, così si ottimizza la velocità di calcolo.
+
+Inoltre, conviene prima fare un leggero punto sulla programmazione generale in Julia prima di procedere con la scrittura
+così che il codice possa essere più decente possibile già alle prime stesure, per evitare grossi gap futuri.
+"""
+
+# Definisco, per facile lettura per ora
 WHITE::Bool=true
 BLACK::Bool=false
 
@@ -5,18 +41,19 @@ BLACK::Bool=false
 #TODO:implementare
 #enpassantSquare=0b0000000000000000000000000000000000000000000000000000000000000000; da inserire nel gameState e modificare metodi correlati
 
-white_pieces = 0x0000000000000008 | 0x0000000000000010 | 0x0000000000000024 | 0x0000000000000042 | 0x0000000000000081 | 0x000000000000ff00;  # 13
-black_pieces = 0x0800000000000000 | 0x1000000000000000 | 0x2400000000000000 | 0x4200000000000000 | 0x8100000000000000 | 0x00ff000000000000;  # 14
-chessboard = white_pieces | black_pieces;  # 15
-
-bitBoards = [0x0000000000000008, 0x0000000000000010, 0x0000000000000024, 0x0000000000000042, 0x0000000000000081, 0x000000000000ff00, 0x0800000000000000, 0x1000000000000000, 0x2400000000000000, 0x4200000000000000, 0x8100000000000000, 0x00ff000000000000, white_pieces, black_pieces, chessboard];
+bitBoards = [0x0000000000000008, 0x0000000000000010, 0x0000000000000024, 0x0000000000000042, 0x0000000000000081, 0x000000000000ff00, 0x0800000000000000, 0x1000000000000000, 0x2400000000000000, 0x4200000000000000, 0x8100000000000000, 0x00ff000000000000];
 gameState = [true, WHITE, false, false, true, true, true, true];
 
+
+
+"""
+Funzione che ritorna una matrice. Questa matrice rappresenta la scacchiera e si può stampare con printBoard()
+"""
 function getBoardToPrint()
     A=Matrix{Char}(undef, 8, 8) # Inizializzo la matrice da stampare
 for i=0:63
     square=0b1000000000000000000000000000000000000000000000000000000000000000 >> i # creo e shifto la casella a8
-    v = divrem(i, 8);
+    v = divrem(i, 8); # Divisione col resto per trovare le coordinate della casella
     if((square & getBlackPieces()) == square)
         if ((getBlackKing() & square) != 0b0)
             A[v[1] + 1, v[2] + 1]='k';
@@ -75,6 +112,16 @@ end
 return A
 end
 
+"""
+Stampa a schermo la scacchiera
+"""
+function printBoard()
+    display("text/plain", getBoardToPrint())
+end
+
+"""
+Stampa a schermo lo stato della scacchiera, informazioni cruciali.
+"""
 function printState()
     if(getRunningGameState())
         if (getTurnGameState() == WHITE)
@@ -108,10 +155,8 @@ function printState()
 end
 
 """
-    bitBoardsfromFEN(fen::String)
-    Prende una stringa FEN e ritorna bitBoards, ossia l'insieme delle 12 + 3 bitBoard fondamentali.
+    Prende una stringa FEN e ritorna bitBoards, ossia l'insieme delle 12 bitBoard fondamentali.
     Oltre alle bitBoards ritorna anche il gameState della stringa FEN.
-TBW
 """
 function bitBoardsfromFEN(fen::String)
     # Inizializzo bitBoards vuote
@@ -228,13 +273,14 @@ end
 if (occursin('Q', fenPieces[3]))
     w_cast_queen=true;
 end
-new_white_pieces = white_king | white_queens | white_bishops | white_knights | white_rooks | white_pawns;  # 13
-new_black_pieces = black_king | black_queens | black_bishops | black_knights | black_rooks | black_pawns;  # 14
-new_chessboard = new_white_pieces | new_black_pieces;  # 15
-    return [white_king, white_queens, white_bishops, white_knights, white_rooks, white_pawns, black_king, black_queens, black_bishops, black_knights, black_rooks, black_pawns, new_white_pieces, new_black_pieces, new_chessboard], [true, playing_turn, false, false, w_cast_king, w_cast_queen, b_cast_king, b_cast_queen];
+    return [white_king, white_queens, white_bishops, white_knights, white_rooks, white_pawns, black_king, black_queens, black_bishops, black_knights, black_rooks, black_pawns], [true, playing_turn, false, false, w_cast_king, w_cast_queen, b_cast_king, b_cast_queen];
 end
 
-function setBitBoardsFromFEN!(fen::String)
+
+"""
+Imposta le bitBoards e lo stato del gioco secondo la stringa FEN ricevuta come input
+"""
+function setBitBoardsFromFEN(fen::String)
     newValues = bitBoardsfromFEN(fen);
     bitBoards.=newValues[1];
     gameState.=newValues[2];
@@ -245,7 +291,7 @@ end
 
 """
 Questa serie di funzioni get ritorna la bitBoard o lo stato del gioco particolare.
-In questo modo non devo 
+In questo modo non devo cercarli tramite l'indice dell'array... (doloroso)
 """
 function getWhiteKing()
     return bitBoards[1]
@@ -296,15 +342,15 @@ function getBlackPawns()
 end
 
 function getWhitePieces()
-    return bitBoards[13]
+    return getWhiteKing() | getWhiteQueens() | getWhiteBishops() | getWhiteKnights() | getWhiteRooks() | getWhitePawns()
 end
 
 function getBlackPieces()
-    return bitBoards[14]
+    return getBlackKing() | getBlackQueens() | getBlackBishops() | getBlackKnights() | getBlackRooks() | getBlackPawns()
 end
 
 function getChessBoard()
-    return bitBoards[15]
+    return getWhitePieces() | getBlackPieces()
 end
 
 function getRunningGameState()
@@ -341,18 +387,31 @@ end
 
 
 
+"""
+Imposta la posizione iniziale, per ora da FEN, per provare, ma in seguito
+TODO: Sciverlo a partire dalle bitboards, così non c'è bisogno di alcun calcolo. (copia incolla da sopra, ma non ho voglia è quasi mezzanotte)
+"""
+function setStartingPosition()
+    setBitBoardsFromFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
+end
 
 
 
-# Per ora è qui che si esegue il codice del gioco
-#
-#
-display("text/plain", getBoardToPrint())
+
+
+
+"""
+Per ora è qui che si esegue il codice del gioco
+"""
+
+println("Scacchi in Julia")
+println("Loading game...") # Stampo messaggi a caso che sembrano avere la loro importanza, solo per eludere l'utente sulla complessità
+setStartingPosition()
+println("Game loaded -> sending output...")
+printBoard()
 printState()
-setBitBoardsFromFEN!("4kb1r/p4ppp/4q3/8/8/1B6/PPP2PPP/2KR4 w --k- - 1 2")
-display("text/plain", getBoardToPrint())
-printState()
-setBitBoardsFromFEN!("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
-display("text/plain", getBoardToPrint())
-printState()
+
+#posizione trovata a caso
+setBitBoardsFromFEN("r1bk3r/p2pBpNp/n4n2/1p1NP2P/6P1/3P4/P1P1K3/q5b1 w ----")
+printBoard()
 
