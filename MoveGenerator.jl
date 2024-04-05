@@ -14,9 +14,9 @@ documantion about the rules of chess are taken from FIDE: https://handbook.fide.
 function generateMoves()
     if(getTurnGameState() == WHITE)
         # as first we want to generate EnemyOrEmpty bitboard variable
-        occupied = getChessBoard()
+        occupied = getOccupancies()
         empty = ~occupied
-        enemyOrEmpty = ~getWhitePieces()
+        enemyOrEmpty = ~getWhiteOccupancies()
         # 'check' to be defined
         if(CHECK)
             """
@@ -57,9 +57,9 @@ function generateMoves()
 
         end
     else # Black move generator
-        occupied = getChessBoard()
+        occupied = getOccupancies()
         empty = ~occupied
-        enemyOrEmpty = ~getBlackPieces()
+        enemyOrEmpty = ~getBlackOccupancies()
     end
     return moves
 end

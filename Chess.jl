@@ -40,6 +40,22 @@ function leastSignificantBit(bitboard::UInt64)::UInt64
     return bitboard & ~(bitboard - 1)
 end
 
+# Turns on bit of given bitboard and ID
+# It returns the modified bitboard but it does not modify the inputed variable.
+function setBitOn(bitboard::UInt64, id)::UInt64
+    return bitboard | (0x0000000000000001 << (id - 1))
+end
+
+# UGLY written function: sets off a bit in a given position. (TODO: should use dictionaries maybe)
+function setBitOff(bitboard::UInt64, id)::UInt64
+    return xor(setBitOn(bitboard, id), (0x0000000000000001 << (id - 1)))
+end
+
+# from 1 to 0, from 0 to 1
+function switchBit(bitboard::UInt64, id)::UInt64
+    return xor(bitboard, (0x0000000000000001 << (id - 1)))
+end
+
 # Given a bitBoard it prints it
 function printBitBoard(bitboard::UInt64)
     for i=1:8:64
@@ -70,7 +86,7 @@ function printBoard()
 for i=0:63
     square=0b1000000000000000000000000000000000000000000000000000000000000000 >> i # A8 square that gets shifted
     v = divrem(i, 8); # division with rem.
-    if((square & getBlackPieces()) == square)
+    if((square & getBlackOccupancies()) == square)
         if ((getBlackKing() & square) != 0b0)
             A[v[1] + 1, v[2] + 1]='k';
             continue;
@@ -95,7 +111,7 @@ for i=0:63
             A[v[1] + 1, v[2] + 1]='p';
             continue;
         end
-    elseif((square & getWhitePieces()) == square)
+    elseif((square & getWhiteOccupancies()) == square)
         if ((getWhiteKing() & square) != 0b0)
             A[v[1] + 1, v[2] + 1]='K';
             continue;
@@ -201,16 +217,16 @@ function getBlackPawns()
     return bitBoards[12]
 end
 
-function getWhitePieces()
+function getWhiteOccupancies()
     return getWhiteKing() | getWhiteQueens() | getWhiteBishops() | getWhiteKnights() | getWhiteRooks() | getWhitePawns()
 end
 
-function getBlackPieces()
+function getBlackOccupancies()
     return getBlackKing() | getBlackQueens() | getBlackBishops() | getBlackKnights() | getBlackRooks() | getBlackPawns()
 end
 
-function getChessBoard()
-    return getWhitePieces() | getBlackPieces()
+function getOccupancies()
+    return getWhiteOccupancies() | getBlackOccupancies()
 end
 
 function getRunningGameState()
@@ -243,6 +259,10 @@ end
 
 function getBlackCastleQueenside()
     return gameState[8]
+end
+
+function getCheck()
+    return gameState[9]
 end
 
 
