@@ -1,7 +1,5 @@
 include("DataManager.jl")
 
-export bitBoards, bittyBoards, gameState
-
 """
 File containing the basis of our ChessGame rapresentation.
 - bitBoards
@@ -75,6 +73,154 @@ function setStartingPosition()
     bitBoards .= [0x0000000000000008, 0x0000000000000010, 0x0000000000000024, 0x0000000000000042, 0x0000000000000081, 0x000000000000ff00, 0x0800000000000000, 0x1000000000000000, 0x2400000000000000, 0x4200000000000000, 0x8100000000000000, 0x00ff000000000000]
     bittyBoards .= [0x0000000000000000]
     gameState .= [true, WHITE, false, false, true, true, true, true, false]
+end
+
+
+##################################
+#TODO list
+# 1) getFENfromBitBoards -> takes bitBitboards and gamestate and returns a fen string associated with them.
+##################################
+
+
+
+
+"""
+    Takes a FEN string as input and outputs bitBoards, bittyBoards with gameState
+    //TODO: Check and move counter
+"""
+function bitBoardsfromFEN(fen::String)
+    # empty bitboards
+    white_king  = 0x0000000000000000
+    white_queens  = 0x0000000000000000
+    white_bishops = 0x0000000000000000
+    white_knights = 0x0000000000000000
+    white_rooks = 0x0000000000000000
+    white_pawns = 0x0000000000000000
+    black_king = 0x0000000000000000
+    black_queens = 0x0000000000000000
+    black_bishops = 0x0000000000000000
+    black_knights = 0x0000000000000000
+    black_rooks  = 0x0000000000000000
+    black_pawns = 0x0000000000000000
+    EP = 0x0000000000000000
+    playing_turn = false;
+    b_cast_king=false;
+    b_cast_queen=false;
+    w_cast_king=false;
+    w_cast_queen=false;
+    # split FEN in pieces
+    fenPieces = split(fen, r"\s+");
+    count = 0; # counter from 1 to 63
+
+    #create bitboards
+    for letter in fenPieces[1]
+        # Create A8 square and shift
+        square=0b1000000000000000000000000000000000000000000000000000000000000000 >> count;
+        if(letter >= '1' && letter <='8')
+            count+=letter-'0';
+            continue;
+        elseif(letter == '/')
+            continue;
+        else
+        if(letter=='k')
+            black_king=square;
+            count+=1;
+            continue;
+        end
+        if(letter=='q')
+            black_queens=black_queens|square;
+            count+=1;
+            continue;
+        end
+        if(letter=='b')
+            black_bishops=black_bishops|square;
+            count+=1;
+            continue;
+        end
+        if(letter=='n')
+            black_knights=black_knights|square;
+            count+=1;
+            continue;
+        end
+        if(letter=='r')
+            black_rooks=black_rooks|square;
+            count+=1;
+            continue;
+        end
+        if(letter=='p')
+            black_pawns=black_pawns|square;
+            count+=1;
+            continue;
+        end
+
+        if(letter=='K')
+            white_king=square;
+            count+=1;
+            continue;
+        end
+        if(letter=='Q')
+            white_queens=white_queens|square;
+            count+=1;
+            continue;
+        end
+        if(letter=='B')
+            white_bishops=white_bishops|square;
+            count+=1;
+            continue;
+        end
+        if(letter=='N')
+            white_knights=white_knights|square;
+            count+=1;
+            continue;
+        end
+        if(letter=='R')
+            white_rooks=white_rooks|square;
+            count+=1;
+            continue;
+        end
+        if(letter=='P')
+            white_pawns=white_pawns|square;
+            count+=1;
+            continue;
+        end
+    end
+end
+
+if (occursin('w', fenPieces[2]))
+    playing_turn=true
+else
+    playing_turn=false
+end
+
+if (occursin('k', fenPieces[3]))
+    b_cast_king=true
+end
+if(occursin('q', fenPieces[3]))
+    b_cast_queen=true
+end
+if (occursin('K', fenPieces[3]))
+    w_cast_king=true
+end
+if (occursin('Q', fenPieces[3]))
+    w_cast_queen=true
+end
+
+if(!occursin('-', fenPieces[4]))
+    EP = get(SQUARES_TO_BITBOARDS, fenPieces[4], 0x0000000000000000)
+    printBitBoard(EP)
+end
+    return [white_king, white_queens, white_bishops, white_knights, white_rooks, white_pawns, black_king, black_queens, black_bishops, black_knights, black_rooks, black_pawns], [true, playing_turn, false, false, w_cast_king, w_cast_queen, b_cast_king, b_cast_queen, false], [EP];
+end
+
+
+"""
+Sets bitboards and gamestate from a FEN string
+"""
+function setBitBoardsFromFEN(fen::String)
+    newValues = bitBoardsfromFEN(fen)
+    bitBoards .= newValues[1]
+    gameState .= newValues[2]
+    bittyBoards .= newValues[3]
 end
 
 
@@ -285,22 +431,4 @@ end
 function getCheck()
     return gameState[9]
 end
-
-
-"""
-Game runs from here right now: sort of MAIN
-"""
-
-###################################################MAIN################################################################
-setStartingPosition()
-printBoard()
-printState()
-println("muovo pedone in e4 attraverso move(..., ...)")
-move("e2", "e4")
-printBoard()
-move("e7", "e5")
-printBoard()
-move("d2", "d4")
-printBoard()
-#########################################################################################################################
 

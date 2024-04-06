@@ -1,4 +1,3 @@
-include("DataManager.jl")
 include("Chess.jl")
 
 """
@@ -14,15 +13,24 @@ documantion about the rules of chess are taken from FIDE: https://handbook.fide.
 function generateMoves()
     if(getTurnGameState() == WHITE)
         # as first we want to generate EnemyOrEmpty bitboard variable
-        occupied = getOccupancies()
-        empty = ~occupied
-        enemyOrEmpty = ~getWhiteOccupancies()
     else # Black move generator
-        occupied = getOccupancies()
-        empty = ~occupied
-        enemyOrEmpty = ~getBlackOccupancies()
     end
     return moves
+end
+
+
+# returns white pawns pseudo forward moves, only possibility for it being illegal is that it causes the check of the king.
+# Enpassant, captures and promotion is handled elsewhere
+function w_pawns_forward()
+    empty = ~getOccupancies()
+    return (getWhitePawns() << 8 & ~RANKS[8] & empty) | (getWhitePawns() << 16 & empty & RANKS[4] & ((empty & RANKS[3]) << 8))
+end
+
+# returns black pawns pseudo forward moves, only possibility for it being illegal is that it causes the check of the king.
+# Enpassant, captures and promotion is handled elsewhere
+function b_pawns_forward()
+    empty = ~getOccupancies()
+    return (getBlackPawns() >> 8 & ~RANKS[1] & empty) | (getBlackPawns() >> 16 & empty & RANKS[5] & ((empty & RANKS[6]) >> 8))
 end
 
 # function that moves a piece from one bitsquare to another one, if the target square is occupied it replaces the piece.
@@ -58,3 +66,26 @@ else
     return nothing
 end
 end
+
+
+"""
+Game runs from here right now: sort of MAIN
+"""
+
+###################################################MAIN################################################################
+setStartingPosition()
+printBoard()
+printState()
+println("muovo pedone in e4 attraverso move(..., ...)")
+move("e2", "e4")
+printBoard()
+printBitBoard(b_pawns_forward())
+println("1. ... e5")
+move("e7", "e5")
+printBoard()
+printBitBoard(w_pawns_forward())
+println("2. d4")
+move("d2", "d4")
+printBoard()
+printBitBoard(b_pawns_forward())
+#########################################################################################################################
