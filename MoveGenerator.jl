@@ -20,7 +20,7 @@ end
 
 
 # returns white pawns pseudo forward moves, only possibility for it being illegal is that it causes the check of the king.
-# Enpassant, captures and promotion is handled elsewhere
+# Enpassant, captures and general PROMOTION is handled elsewhere
 function w_pawns_forward()
     empty = ~getOccupancies()
     return (getWhitePawns() << 8 & ~RANKS[8] & empty) | (getWhitePawns() << 16 & empty & RANKS[4] & ((empty & RANKS[3]) << 8))
@@ -31,6 +31,63 @@ end
 function b_pawns_forward()
     empty = ~getOccupancies()
     return (getBlackPawns() >> 8 & ~RANKS[1] & empty) | (getBlackPawns() >> 16 & empty & RANKS[5] & ((empty & RANKS[6]) >> 8))
+end
+
+# Knight MOVEMENT ONLY mask: knight mask is special as it is also a SeenByKnightMap (an enemy king cannot move to these squares)
+function knight_mask(bitsquare::UInt64)
+    mask = bitsquare << 10 | bitsquare << 17 | bitsquare << 6 | bitsquare << 15 | bitsquare >> 10 | bitsquare >> 17 | bitsquare >> 6 | bitsquare >> 15
+    if(get(BITSQUARES_TO_COORDINATES, bitsquare, nothing)[2] == 1 || get(BITSQUARES_TO_COORDINATES, bitsquare, nothing)[2] == 2)
+    mask = mask & ~FILES[8] & ~FILES[7]
+    end
+    if(get(BITSQUARES_TO_COORDINATES, bitsquare, nothing)[2] == 7 || get(BITSQUARES_TO_COORDINATES, bitsquare, nothing)[2] == 8)
+        mask = mask & ~FILES[1] & ~FILES[2]
+    end
+    return mask
+end
+
+# Rook MOVEMENT ONLY mask
+function rook_mask(bitsquare::UInt64)
+    rank = get(BITSQUARES_TO_COORDINATES, bitsquare, nothing)[1]
+    file = get(BITSQUARES_TO_COORDINATES, bitsquare, nothing)[2]
+    return xor(RANKS[rank], FILES[file])
+end
+
+# Bishop MOVEMENT ONLY mask
+function bishop_mask(bitsquare::UInt64)
+    diagonal = get(BITSQUARES_TO_DAD, bitsquare, nothing)[1]
+    anti_diagonal = get(BITSQUARES_TO_DAD, bitsquare, nothing)[2]
+    return xor(DIAGONALS[diagonal], ANTI_DIAGONALS[anti_diagonal])
+end
+
+# King MOVEMENT ONLY mask
+function king_mask(bitsquare::UInt64)
+    mask = bitsquare << 9 | bitsquare << 8 | bitsquare << 7 | bitsquare >> 1 | bitsquare >> 9 | bitsquare >> 8 | bitsquare >> 7 | bitsquare << 1
+    if(get(BITSQUARES_TO_COORDINATES, bitsquare, nothing)[2] == 1)
+    mask = mask & ~FILES[8]
+    end
+    if(get(BITSQUARES_TO_COORDINATES, bitsquare, nothing)[2] == 8)
+        mask = mask & ~FILES[1]
+    end
+    return mask
+end
+
+# Queen MOVEMENT ONLY mask
+function queen_mask(bitsquare::UInt64)
+    return xor(bishop_mask(bitsquare), rook_mask(bitsquare))
+end
+
+# White Pawn attack mask
+function w_pawn_attack(bitsquare::UInt64)
+    right_attack = bitsquare << 7
+    left_attack = bitsquare << 9
+    return (right_attack & ~FILES[1] & ~RANKS[8]) | (left_attack & ~FILES[8] & ~RANKS[8])
+end
+
+# Black Pawn attack mask
+function b_pawn_attack(bitsquare::UInt64)
+    right_attack = bitsquare >> 7
+    left_attack = bitsquare >> 9
+    return (right_attack & ~FILES[8] & ~RANKS[1]) | (left_attack & ~FILES[1] & ~RANKS[1])
 end
 
 # function that moves a piece from one bitsquare to another one, if the target square is occupied it replaces the piece.
@@ -76,16 +133,4 @@ Game runs from here right now: sort of MAIN
 setStartingPosition()
 printBoard()
 printState()
-println("muovo pedone in e4 attraverso move(..., ...)")
-move("e2", "e4")
-printBoard()
-printBitBoard(b_pawns_forward())
-println("1. ... e5")
-move("e7", "e5")
-printBoard()
-printBitBoard(w_pawns_forward())
-println("2. d4")
-move("d2", "d4")
-printBoard()
-printBitBoard(b_pawns_forward())
 #########################################################################################################################
