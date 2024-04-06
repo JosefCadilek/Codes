@@ -1,4 +1,7 @@
 include("Chess.jl")
+include("MoveData.jl")
+
+MOVES = []
 
 """
 Legal move generator step by step
@@ -11,11 +14,51 @@ documantion about the rules of chess are taken from FIDE: https://handbook.fide.
 # main function that generates and formats list of legal moves
 # TODO: everything
 function generateMoves()
+    moves = []
     if(getTurnGameState() == WHITE)
-        # as first we want to generate EnemyOrEmpty bitboard variable
+        enemyOrEmpty = ~getWhiteOccupancies()
+        occ = getWhiteOccupancies()
+        while(occ != 0b0)
+            piece = leastSignificantBit(occ)
+            index = getBitBoardsIndex(piece)
+            if(index == 1)
+                push!(moves, (piece , get(KING_MASKS, piece, nothing) & enemyOrEmpty))
+            elseif(index == 2)
+                push!(moves, (piece , get(QUEEN_MASKS, piece, nothing) & enemyOrEmpty))
+            elseif(index ==3)
+                push!(moves, (piece , get(BISHOP_MASKS, piece, nothing) & enemyOrEmpty))
+            elseif(index == 4)
+                push!(moves, (piece , get(KNIGHT_MASKS, piece, nothing) & enemyOrEmpty))
+            elseif(index == 5)
+                push!(moves, (piece , get(ROOK_MASKS, piece, nothing) & enemyOrEmpty))
+            elseif(index==6)
+                push!(moves, (piece , get(W_PAWN_ATTACKS, piece, nothing) & getBlackOccupancies()))
+            end
+            occ &= ~piece
+        end
     else # Black move generator
+        enemyOrEmpty = ~getBlackOccupancies()
+        occ = getBlackOccupancies()
+        while(occ != 0b0)
+            piece = leastSignificantBit(occ)
+            index = getBitBoardsIndex(piece)
+            if(index == 7)
+                push!(moves, (piece , get(KING_MASKS, piece, nothing) & enemyOrEmpty))
+            elseif(index == 8)
+                push!(moves, (piece , get(QUEEN_MASKS, piece, nothing) & enemyOrEmpty))
+            elseif(index == 9)
+                push!(moves, (piece , get(BISHOP_MASKS, piece, nothing) & enemyOrEmpty))
+            elseif(index == 10)
+                push!(moves, (piece , get(KNIGHT_MASKS, piece, nothing) & enemyOrEmpty))
+            elseif(index == 11)
+                push!(moves, (piece , get(ROOK_MASKS, piece, nothing) & enemyOrEmpty))
+            elseif(index== 12)
+                push!(moves, (piece , get(B_PAWN_ATTACKS, piece, nothing) & getWhiteOccupancies()))
+            end
+            occ &= ~piece
+        end
     end
-    return moves
+    moves
 end
 
 
@@ -23,14 +66,14 @@ end
 # Enpassant, captures and general PROMOTION is handled elsewhere
 function w_pawns_forward()
     empty = ~getOccupancies()
-    return (getWhitePawns() << 8 & ~RANKS[8] & empty) | (getWhitePawns() << 16 & empty & RANKS[4] & ((empty & RANKS[3]) << 8))
+    return (getWhitePawns() << 8 & ~RANKS[8] & empty) | (getWhitePawns() << 16 & empty & RANKS[4] & (empty << 8))
 end
 
 # returns black pawns pseudo forward moves, only possibility for it being illegal is that it causes the check of the king.
 # Enpassant, captures and promotion is handled elsewhere
 function b_pawns_forward()
     empty = ~getOccupancies()
-    return (getBlackPawns() >> 8 & ~RANKS[1] & empty) | (getBlackPawns() >> 16 & empty & RANKS[5] & ((empty & RANKS[6]) >> 8))
+    return (getBlackPawns() >> 8 & ~RANKS[1] & empty) | (getBlackPawns() >> 16 & empty & RANKS[5] & (empty >> 8))
 end
 
 # Knight MOVEMENT ONLY mask: knight mask is special as it is also a SeenByKnightMap (an enemy king cannot move to these squares)
