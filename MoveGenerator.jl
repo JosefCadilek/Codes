@@ -167,6 +167,58 @@ else
 end
 end
 
+# Only one-time use function. It has served for generating data, in particular the relevant bits for sliding pieces.
+function initECORook()
+    array = []
+    result = 0
+    for i=1:64
+        cleanBitBoards()
+        bitBoards[5] = setBitOn(getWhiteRooks(), i)
+        result = rook_mask(getWhiteRooks())
+        if(get(BITSQUARES_TO_COORDINATES, getWhiteRooks(), nothing)[2] != 1)
+            result &= ~FILES[1]
+        end
+            if(get(BITSQUARES_TO_COORDINATES, getWhiteRooks(), nothing)[2] != 8)
+                result &= ~FILES[8]
+            end
+                if(get(BITSQUARES_TO_COORDINATES, getWhiteRooks(), nothing)[1] != 1)
+                    result &= ~RANKS[1]
+                end
+                    if(get(BITSQUARES_TO_COORDINATES, getWhiteRooks(), nothing)[1] != 8)
+                        result &= ~RANKS[8]
+                    end
+        temp = count_ones(result)
+        push!(array, temp)
+        println("0b" * bitstring(getWhiteRooks()) * " => $temp,")
+    end
+end
+
+# Only one-time use function. It has served for generating data, in particular the relevant bits for sliding pieces.
+    function initECOBishop()
+        array = []
+        result = 0
+        for i=1:64
+            cleanBitBoards()
+            bitBoards[3] = setBitOn(getWhiteBishops(), i)
+            result = bishop_mask(getWhiteBishops())
+            if(get(BITSQUARES_TO_COORDINATES, getWhiteBishops(), nothing)[2] != 1)
+                result &= ~FILES[1]
+            end
+                if(get(BITSQUARES_TO_COORDINATES, getWhiteBishops(), nothing)[2] != 8)
+                    result &= ~FILES[8]
+                end
+                    if(get(BITSQUARES_TO_COORDINATES, getWhiteBishops(), nothing)[1] != 1)
+                        result &= ~RANKS[1]
+                    end
+                        if(get(BITSQUARES_TO_COORDINATES, getWhiteBishops(), nothing)[1] != 8)
+                            result &= ~RANKS[8]
+                        end
+            temp = count_ones(result)
+            push!(array, temp)
+            println("0b" * bitstring(getWhiteBishops()) * " => $temp,")
+        end
+        end
+
 
 """
 Game runs from here right now: sort of MAIN
