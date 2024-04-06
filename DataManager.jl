@@ -3,7 +3,7 @@ File containing datas
 Containing functions managing the data
 """
 
-export RANKS, FILES, DIAGONALS, ANTI_DIAGONALS, SQUARES_TO_BITBOARDS, BITSQUARES_TO_COORDINATES, bitBoardsfromFEN, setBitBoardsFromFEN
+export RANKS, FILES, DIAGONALS, ANTI_DIAGONALS, SQUARES_TO_BITBOARDS, BITSQUARES_TO_COORDINATES, BITSQUARES_TO_DAD, BITSQUARES_TO_ID, BITSQUARES_TO_NOTATION, bitBoardsfromFEN, setBitBoardsFromFEN
 
 ##################################
 #TODO list
@@ -15,7 +15,7 @@ export RANKS, FILES, DIAGONALS, ANTI_DIAGONALS, SQUARES_TO_BITBOARDS, BITSQUARES
 
 """
     Takes a FEN string as input and outputs bitBoards, bittyBoards with gameState
-    //TODO: Check, EnPassant...
+    //TODO: Check and move counter
 """
 function bitBoardsfromFEN(fen::String)
     # empty bitboards
@@ -31,6 +31,7 @@ function bitBoardsfromFEN(fen::String)
     black_knights = 0x0000000000000000
     black_rooks  = 0x0000000000000000
     black_pawns = 0x0000000000000000
+    EP = 0x0000000000000000
     playing_turn = false;
     b_cast_king=false;
     b_cast_queen=false;
@@ -134,9 +135,10 @@ if (occursin('Q', fenPieces[3]))
 end
 
 if(!occursin('-', fenPieces[4]))
-    println("enpassant square")
+    EP = get(SQUARES_TO_BITBOARDS, fenPieces[4], 0x0000000000000000)
+    printBitBoard(EP)
 end
-    return [white_king, white_queens, white_bishops, white_knights, white_rooks, white_pawns, black_king, black_queens, black_bishops, black_knights, black_rooks, black_pawns], [true, playing_turn, false, false, w_cast_king, w_cast_queen, b_cast_king, b_cast_queen, false];
+    return [white_king, white_queens, white_bishops, white_knights, white_rooks, white_pawns, black_king, black_queens, black_bishops, black_knights, black_rooks, black_pawns], [true, playing_turn, false, false, w_cast_king, w_cast_queen, b_cast_king, b_cast_queen, false], [EP];
 end
 
 
@@ -147,6 +149,7 @@ function setBitBoardsFromFEN(fen::String)
     newValues = bitBoardsfromFEN(fen)
     bitBoards .= newValues[1]
     gameState .= newValues[2]
+    bittyBoards .= newValues[3]
 end
 
 RANKS = [0xff, 0xff00, 0xff0000,

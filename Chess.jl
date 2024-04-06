@@ -79,6 +79,22 @@ end
 
 
 """
+These functions sets bitboards, gamestate and bittyboards if inputed with proper array
+"""
+function setBitBoards(bitboards)
+    bitBoards .= bitboards
+end
+
+function setGameState(gamestate)
+    gameState .= gamestate
+end
+
+function setBittyBoards(bittyboards)
+    bitBoards .= bittyboards
+end
+
+
+"""
 Prints the board in a human representation
 """
 function printBoard()
@@ -229,6 +245,11 @@ function getOccupancies()
     return getWhiteOccupancies() | getBlackOccupancies()
 end
 
+# returns current EnPassant square
+function getEPsquare()
+    return bittyBoards[1]
+end
+
 function getRunningGameState()
     return gameState[1]
 end
@@ -274,5 +295,12 @@ Game runs from here right now: sort of MAIN
 setStartingPosition()
 printBoard()
 printState()
+println("muovo pedone in e4 attraverso move(..., ...)")
+move("e2", "e4")
+printBoard()
+move("e7", "e5")
+printBoard()
+move("d2", "d4")
+printBoard()
 #########################################################################################################################
 
