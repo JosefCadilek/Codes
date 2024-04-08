@@ -168,6 +168,7 @@ end
 end
 
 # Only one-time use function. It has served for generating data, in particular the relevant bits for sliding pieces.
+# TODO: remove function when no needed
 function initECORook()
     array = []
     result = 0
@@ -187,13 +188,11 @@ function initECORook()
                     if(get(BITSQUARES_TO_COORDINATES, getWhiteRooks(), nothing)[1] != 8)
                         result &= ~RANKS[8]
                     end
-        temp = count_ones(result)
-        push!(array, temp)
-        println("0b" * bitstring(getWhiteRooks()) * " => $temp,")
+                    println("0b" * bitstring(getWhiteRooks()) * " => 0b" * bitstring(result) * ",")
     end
 end
 
-# Only one-time use function. It has served for generating data, in particular the relevant bits for sliding pieces.
+    # Only one-time use function. It has served for generating data, in particular the relevant bits for sliding pieces.
     function initECOBishop()
         array = []
         result = 0
@@ -213,11 +212,120 @@ end
                         if(get(BITSQUARES_TO_COORDINATES, getWhiteBishops(), nothing)[1] != 8)
                             result &= ~RANKS[8]
                         end
-            temp = count_ones(result)
-            push!(array, temp)
-            println("0b" * bitstring(getWhiteBishops()) * " => $temp,")
+                    println("0b" * bitstring(getWhiteBishops()) * " => 0b" * bitstring(result) * ",")
         end
         end
+
+
+# generate valid rook attacks during runtime
+function rook_attacks_run(occupancy::UInt64, bitsquare::UInt64)
+    attack = 0x0000000000000000
+    coordinates = get(BITSQUARES_TO_COORDINATES, bitsquare, nothing)
+    rank = coordinates[1]
+    file = coordinates[2]
+    relevant_occupancy = occupancy & get(ECO_ROOK_MASKS, bitsquare, nothing)
+    target_n = rank + 1
+    target_s = rank - 1
+    target_e = file + 1
+    target_w = file - 1
+    loop = true
+    while (target_n <= 8 && loop)
+        target_square = RANKS[target_n] & FILES[file]
+        target_n += 1
+        attack |= target_square
+        if((relevant_occupancy & target_square) != 0b0)
+            loop = false
+        end
+    end
+    loop = true
+    while (target_s >= 1 && loop)
+        target_square = RANKS[target_s] & FILES[file]
+        target_s -= 1
+        attack |= target_square
+        if((relevant_occupancy & target_square) != 0b0)
+            loop = false
+        end
+    end
+    loop = true
+    while (target_e <= 8 && loop)
+        target_square = RANKS[rank] & FILES[target_e]
+        target_e += 1
+        attack |= target_square
+        if((relevant_occupancy & target_square) != 0b0)
+            loop = false
+        end
+    end
+    loop = true
+    while (target_w >= 1 && loop)
+        target_square = RANKS[rank] & FILES[target_w]
+        target_w -= 1
+        attack |= target_square
+        if((relevant_occupancy & target_square) != 0b0)
+            loop = false
+        end
+    end
+    return attack
+end
+
+# generate valid bishop attacks during runtime
+function bishop_attacks_run(occupancy::UInt64, bitsquare::UInt64)
+    attack = 0x0000000000000000
+    coordinates = get(BITSQUARES_TO_COORDINATES, bitsquare, nothing)
+    rank = coordinates[1]
+    file = coordinates[2]
+    relevant_occupancy = occupancy & get(ECO_BISHOP_MASKS, bitsquare, nothing)
+    target_n = rank + 1
+    target_s = rank - 1
+    target_e = file + 1
+    target_w = file - 1
+    loop = true
+    while (target_w >= 1 && target_n <= 8 && loop)
+        target_square = RANKS[target_n] & FILES[target_w]
+        target_n += 1
+        target_w -= 1
+        attack |= target_square
+        if((relevant_occupancy & target_square) != 0b0)
+            loop = false
+        end
+    end
+    target_n = rank + 1
+    target_e = file + 1
+    loop = true
+    while (target_e <= 8 && target_n <= 8 && loop)
+        target_square = RANKS[target_n] & FILES[target_e]
+        target_n += 1
+        target_e += 1
+        attack |= target_square
+        if((relevant_occupancy & target_square) != 0b0)
+            loop = false
+        end
+    end
+    target_s = rank - 1
+    target_e = file + 1
+    loop = true
+    while (target_e <= 8 && target_s >= 1 && loop)
+        target_square = RANKS[target_s] & FILES[target_e]
+        target_s -= 1
+        target_e += 1
+        attack |= target_square
+        if((relevant_occupancy & target_square) != 0b0)
+            loop = false
+        end
+    end
+    target_s = rank - 1
+    target_w = file - 1
+    loop = true
+    while (target_w >= 1 && target_s >= 1 && loop)
+        target_square = RANKS[target_s] & FILES[target_w]
+        target_s -= 1
+        target_w -= 1
+        attack |= target_square
+        if((relevant_occupancy & target_square) != 0b0)
+            loop = false
+        end
+    end
+    return attack
+end
 
 
 """
