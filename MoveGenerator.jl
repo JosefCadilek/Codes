@@ -3,6 +3,8 @@ include("MoveData.jl")
 
 MOVES = []
 
+rook_final = Dict()
+
 """
 Legal move generator step by step
 
@@ -328,12 +330,115 @@ function bishop_attacks_run(occupancy::UInt64, bitsquare::UInt64)
 end
 
 
+# set blockers for rook
+function setBlockersRook(index, bitsquare::UInt64)::UInt64
+    occupancy = 0b0000000000000000000000000000000000000000000000000000000000000000
+    attack_mask = get(ECO_ROOK_MASKS, bitsquare, nothing)
+    ID = leastSignificantBit(attack_mask)
+    rl_bits = get(ROOK_RLBITS_BY_BITSQUARE, bitsquare, nothing)
+    for i=0:rl_bits
+        square = leastSignificantBit(attack_mask)
+        id = ID
+        if(square != 0b0)
+        id = get(BITSQUARES_TO_ID, square, nothing)
+        end
+        attack_mask = switchBit(attack_mask, id)
+        if(((index) & (0b0000000000000000000000000000000000000000000000000000000000000001 << i)) != 0b0000000000000000000000000000000000000000000000000000000000000000)
+            occupancy |= square
+        end
+    end
+    return occupancy
+end
+
+# set blockers for rook
+function setBlockersBishop(index, bitsquare::UInt64)::UInt64
+    occupancy = 0b0000000000000000000000000000000000000000000000000000000000000000
+    attack_mask = get(ECO_BISHOP_MASKS, bitsquare, nothing)
+    ID = leastSignificantBit(attack_mask)
+    rl_bits = get(BISHOP_RLBITS_BY_BITSQUARE, bitsquare, nothing)
+    for i=0:rl_bits
+        square = leastSignificantBit(attack_mask)
+        id = ID
+        if(square != 0b0)
+        id = get(BITSQUARES_TO_ID, square, nothing)
+        end
+        attack_mask = switchBit(attack_mask, id)
+        if(((index) & (0b0000000000000000000000000000000000000000000000000000000000000001 << i)) != 0b0000000000000000000000000000000000000000000000000000000000000000)
+            occupancy |= square
+        end
+    end
+    return occupancy
+end
+
+function random_uint64()::UInt64
+  u1::UInt64 = rand(UInt64) & 0xFFFF
+  u2::UInt64 = rand(UInt64) & 0xFFFF
+  u3::UInt64 = rand(UInt64) & 0xFFFF
+  u4::UInt64 = rand(UInt64) & 0xFFFF
+  return u1 | (u2 << 16) | (u3 << 32) | (u4 << 48)
+end
+
+function random_uint64_fewbits()::UInt64
+  return random_uint64() & random_uint64() & random_uint64()
+end
+
+
+function magic_rooks(bitsquare::UInt64)
+    fail = false
+    occupancies = []
+    attacks = []
+    used_attacks = Dict()
+    attack_mask = get(ECO_ROOK_MASKS, bitsquare, nothing)
+    rl_bits = get(ROOK_RLBITS_BY_BITSQUARE, bitsquare, nothing)
+    occupancy_indicies = 0b0000000000000000000000000000000000000000000000000000000000000001 << rl_bits
+    for i=0:(occupancy_indicies-1)
+        push!(occupancies, setBlockersRook(i, bitsquare))
+        push!(attacks, rook_attacks_run(occupancies[i + 1], bitsquare))
+    end
+
+    for count=1:10000000
+            magic_number = random_uint64_fewbits()
+            
+            if (count_ones((attack_mask * magic_number) & 0xFF00000000000000) < 6) 
+                continue
+            end
+            
+            fail = false
+            index = 0
+            while(!fail && index < occupancy_indicies)
+
+                index += 1
+                magic_index = (occupancies[index] * magic_number) >> (64 - rl_bits)
+                
+                if (get(used_attacks, magic_index, nothing) === nothing)
+
+                    used_attacks[magic_index] = attacks[index]
+
+                elseif(get(used_attacks, magic_index, nothing) != attacks[index])
+                    fail = true
+                    used_attacks = Dict()
+                end
+            end
+            if (!fail)
+                println("vittoria")
+                return magic_number
+            end
+        end
+        return "---"
+end
+
 """
 Game runs from here right now: sort of MAIN
 """
 
 ###################################################MAIN################################################################
-setStartingPosition()
-printBoard()
-printState()
+#for i=1:64
+cleanBitBoards()
+bitBoards[5] = setBitOn(getWhiteRooks(), 1)
+magically = magic_rooks(getWhiteRooks())
+println(magically)
+#end
+#magic, attacks = magic_rooks(getWhiteRooks())
+#result = (occ * magic) >> (64 - 12)
+#printBitBoard(attacks[result])
 #########################################################################################################################
