@@ -1,10 +1,6 @@
 include("Chess.jl")
 include("MoveData.jl")
 
-MOVES = []
-
-rook_final = Dict()
-
 """
 Legal move generator step by step
 
@@ -78,6 +74,11 @@ function b_pawns_forward()
     return (getBlackPawns() >> 8 & ~RANKS[1] & empty) | (getBlackPawns() >> 16 & empty & RANKS[5] & (empty >> 8))
 end
 
+
+"""
+These functions that follows were used for generating Dictionaries in Move Data.
+"""
+
 # Knight MOVEMENT ONLY mask: knight mask is special as it is also a SeenByKnightMap (an enemy king cannot move to these squares)
 function knight_mask(bitsquare::UInt64)
     mask = bitsquare << 10 | bitsquare << 17 | bitsquare << 6 | bitsquare << 15 | bitsquare >> 10 | bitsquare >> 17 | bitsquare >> 6 | bitsquare >> 15
@@ -135,6 +136,16 @@ function b_pawn_attack(bitsquare::UInt64)
     return (right_attack & ~FILES[8] & ~RANKS[1]) | (left_attack & ~FILES[1] & ~RANKS[1])
 end
 
+
+
+"""
+MOVE SECTION:
+TODO: Everything
+"""
+
+
+
+
 # function that moves a piece from one bitsquare to another one, if the target square is occupied it replaces the piece.
 # note that alliance pieces are removed from the board too.
 function move(from::UInt64, to::UInt64)
@@ -155,7 +166,12 @@ function move(fromSquare::String, toSquare::String)
     move(from, to)
 end
 
-# returns index of bitBoards array that contains a bitsquare received as input
+
+"""
+EVERYTHING IN NEED FOR MAGIC NUMBERS
+"""
+
+# returns index of bitBoards array that contains a bitsquare received as input: helper function
 function getBitBoardsIndex(bitsquare::UInt64)
     if(bitsquare & getOccupancies() != 0b0)
     for i=1:12
@@ -169,8 +185,7 @@ else
 end
 end
 
-# Only one-time use function. It has served for generating data, in particular the relevant bits for sliding pieces.
-# TODO: remove function when no needed
+# Relevant bits only attack mask for the rook
 function initECORook()
     array = []
     result = 0
@@ -194,7 +209,7 @@ function initECORook()
     end
 end
 
-    # Only one-time use function. It has served for generating data, in particular the relevant bits for sliding pieces.
+    # Relevant bits only attack mask for the bishop
     function initECOBishop()
         array = []
         result = 0
@@ -370,6 +385,7 @@ function setBlockersBishop(index, bitsquare::UInt64)::UInt64
     return occupancy
 end
 
+# random UInt64 generator
 function random_uint64()::UInt64
   u1::UInt64 = rand(UInt64) & 0xFFFF
   u2::UInt64 = rand(UInt64) & 0xFFFF
@@ -378,11 +394,12 @@ function random_uint64()::UInt64
   return u1 | (u2 << 16) | (u3 << 32) | (u4 << 48)
 end
 
+# Few bits are better for finding magic numbers
 function random_uint64_fewbits()::UInt64
   return random_uint64() & random_uint64() & random_uint64()
 end
 
-
+# Magic number generator for rooks
 function magic_rooks(bitsquare::UInt64)
     fail = false
     occupancies = []
@@ -420,11 +437,264 @@ function magic_rooks(bitsquare::UInt64)
                 end
             end
             if (!fail)
-                println("vittoria")
-                return magic_number
+                return println("0b" * bitstring(bitsquare) * " => $magic_number,")
             end
         end
         return "---"
+end
+
+# Magic number generator for bishops
+function magic_bishops(bitsquare::UInt64)
+    fail = false
+    occupancies = []
+    attacks = []
+    used_attacks = Dict()
+    attack_mask = get(ECO_BISHOP_MASKS, bitsquare, nothing)
+    rl_bits = get(BISHOP_RLBITS_BY_BITSQUARE, bitsquare, nothing)
+    occupancy_indicies = 0b0000000000000000000000000000000000000000000000000000000000000001 << rl_bits
+    for i=0:(occupancy_indicies-1)
+        push!(occupancies, setBlockersBishop(i, bitsquare))
+        push!(attacks, bishop_attacks_run(occupancies[i + 1], bitsquare))
+    end
+
+    for count=1:10000000
+            magic_number = random_uint64_fewbits()
+            
+            if (count_ones((attack_mask * magic_number) & 0xFF00000000000000) < 6) 
+                continue
+            end
+            
+            fail = false
+            index = 0
+            while(!fail && index < occupancy_indicies)
+
+                index += 1
+                magic_index = (occupancies[index] * magic_number) >> (64 - rl_bits)
+                
+                if (get(used_attacks, magic_index, nothing) === nothing)
+
+                    used_attacks[magic_index] = attacks[index]
+
+                elseif(get(used_attacks, magic_index, nothing) != attacks[index])
+                    fail = true
+                    used_attacks = Dict()
+                end
+            end
+            if (!fail)
+                return println("0b" * bitstring(bitsquare) * " => $magic_number,")
+            end
+        end
+        return "---"
+end
+
+# Initialize a big Dictionary for rook attacks
+# magic numbers are being finally used
+function init_rook_attacks()
+    rook_attacks = Dict()
+    for i=1:64
+    bitsquare = occupancy_indicies = 0b0000000000000000000000000000000000000000000000000000000000000001 << (i-1)
+    occupancies = []
+    attacks = []
+    used_attacks = Dict()
+    rl_bits = get(ROOK_RLBITS_BY_BITSQUARE, bitsquare, nothing)
+    occupancy_indicies = 0b0000000000000000000000000000000000000000000000000000000000000001 << rl_bits
+    for i=0:(occupancy_indicies-1)
+        push!(occupancies, setBlockersRook(i, bitsquare))
+        push!(attacks, rook_attacks_run(occupancies[i + 1], bitsquare))
+    end
+
+            magic_number = get(MAGIC_ROOK, bitsquare, nothing)
+            
+            index = 0
+            while(index < occupancy_indicies)
+
+                index += 1
+                magic_index = (occupancies[index] * magic_number) >> (64 - rl_bits)
+                
+                if (get(used_attacks, magic_index, nothing) === nothing)
+
+                    used_attacks[magic_index] = attacks[index]
+                end
+            end
+            rook_attacks[bitsquare] = used_attacks
+        end
+        return rook_attacks
+end
+
+# Initialize a big Dictionary for bishop attacks
+# magic numbers are being finally used
+function init_bishop_attacks()
+    bishop_attacks = Dict()
+    for i=1:64
+    bitsquare = occupancy_indicies = 0b0000000000000000000000000000000000000000000000000000000000000001 << (i-1)
+    occupancies = []
+    attacks = []
+    used_attacks = Dict()
+    rl_bits = get(BISHOP_RLBITS_BY_BITSQUARE, bitsquare, nothing)
+    occupancy_indicies = 0b0000000000000000000000000000000000000000000000000000000000000001 << rl_bits
+    for i=0:(occupancy_indicies-1)
+        push!(occupancies, setBlockersBishop(i, bitsquare))
+        push!(attacks, bishop_attacks_run(occupancies[i + 1], bitsquare))
+    end
+
+            magic_number = get(MAGIC_BISHOP, bitsquare, nothing)
+            
+            index = 0
+            while(index < occupancy_indicies)
+
+                index += 1
+                magic_index = (occupancies[index] * magic_number) >> (64 - rl_bits)
+                
+                if (get(used_attacks, magic_index, nothing) === nothing)
+
+                    used_attacks[magic_index] = attacks[index]
+                end
+            end
+            bishop_attacks[bitsquare] = used_attacks
+        end
+        return bishop_attacks
+end
+
+
+"""
+The following functions are the final functions to get the piece movements easily
+
+These functions in partical return a bitboard that contains every single attacked square:
+1) they don't consider Allies
+2) they don't consider Pins
+3) they don't consider Safe Squares
+"""
+
+# Functions that returns every possible pseudo-legal target square for a rook
+# It doesn't handle Allies and Pins
+function getRookAttacks(bitsquare::UInt64)::UInt64
+    relevant_occupancy = getOccupancies() & get(ECO_ROOK_MASKS, bitsquare, nothing)
+    magic_index = (relevant_occupancy * get(MAGIC_ROOK, bitsquare, nothing)) >> (64 - get(ROOK_RLBITS_BY_BITSQUARE, bitsquare, nothing))
+    return get(get(ROOK_ATTACKS, bitsquare, nothing), magic_index, nothing)
+end
+
+# Functions that returns every possible pseudo-legal target square for a bishop
+# It doesn't handle Allies and Pins
+function getBishopAttacks(bitsquare::UInt64)::UInt64
+    relevant_occupancy = getOccupancies() & get(ECO_BISHOP_MASKS, bitsquare, nothing)
+    magic_index = (relevant_occupancy * get(MAGIC_BISHOP, bitsquare, nothing)) >> (64 - get(BISHOP_RLBITS_BY_BITSQUARE, bitsquare, nothing))
+    return get(get(BISHOP_ATTACKS, bitsquare, nothing), magic_index, nothing)
+end
+
+# Functions that returns every possible pseudo-legal target square for a queen
+# It doesn't handle Allies and Pins
+function getQueenAttacks(bitsquare::UInt64)::UInt64
+    return getBishopAttacks(bitsquare) | getRookAttacks(bitsquare)
+end
+
+# Functions that returns every possible pseudo-legal target square for a knight
+# It doesn't handle Allies and Pins
+function getKingAttacks(bitsquare::UInt64)::UInt64
+    return get(KING_MASKS, bitsquare, nothing)
+end
+
+# Functions that returns every possible pseudo-legal target square for the king
+# It doesn't handle Allies and Safe Squares
+function getKnightAttacks(bitsquare::UInt64)::UInt64
+    return get(KNIGHT_MASKS, bitsquare, nothing)
+end
+
+# Functions that returns attack pseudo-legal target square for the white pawn
+# It doesn't handle Allies and Pins
+# TODO: last rank captures (promotion)
+function white_pawn_attacks(bitsquare::UInt64)::UInt64
+    return get(W_PAWN_ATTACKS, bitsquare, nothing)
+end
+
+# Functions that returns attack pseudo-legal target square for the black pawn
+# It doesn't handle Allies and Pins
+# TODO: last rank captures (promotion)
+function black_pawn_attacks(bitsquare::UInt64)::UInt64
+    return get(B_PAWN_ATTACKS, bitsquare, nothing)
+end
+
+"""
+Debug + have fun with magics functions
+"""
+
+# Sets random blockers (white pawns)
+function setRandomOccupancy(bitsquare::UInt64)
+    i = rand(0:4095)
+    bitBoards[6] = setBlockersRook(i, bitsquare) | setBlockersBishop(i, bitsquare)
+end
+
+# sets only one rook on a random square
+# if occ = true -> random blockers on the board
+# if toPrint = true -> prints board and bitboards of possible rook attacks
+# id debug = true -> debug mode
+function alone_rook(occ::Bool, toPrint::Bool, debug::Bool)
+    i = rand(1:64)
+    cleanBitBoards()
+    bitBoards[5] = setBitOn(getWhiteRooks(), i)
+    occ && setRandomOccupancy(getWhiteRooks())
+    if(toPrint)
+    printBoard()
+    println()
+    printBitBoard(getRookAttacks(getWhiteRooks()))
+    println()
+    end
+    if(debug)
+    var1 = getRookAttacks(getWhiteRooks())
+    var2 = rook_attacks_run(getOccupancies(), getWhiteRooks())
+    # it's everything ok?
+    if(var1 != var2)
+        println("$var1 != $var2") # not okay if this line is reached
+    end
+    end
+end
+
+# sets only one bishop on a random square
+# if occ = true -> random blockers on the board
+# if toPrint = true -> prints board and bitboards of possible bishop attacks
+# id debug = true -> debug mode
+function alone_bishop(occ::Bool, toPrint::Bool, debug::Bool)
+    i = rand(1:64)
+    cleanBitBoards()
+    bitBoards[3] = setBitOn(getWhiteBishops(), i)
+    occ && setRandomOccupancy(getWhiteBishops())
+    if(toPrint)
+    printBoard()
+    println()
+    printBitBoard(getBishopAttacks(getWhiteBishops()))
+    println()
+    end
+    if(debug)
+    var1 = getBishopAttacks(getWhiteBishops())
+    var2 = bishop_attacks_run(getOccupancies(), getWhiteBishops())
+    # it's everything ok?
+    if(var1 != var2)
+        println("$var1 != $var2")
+    end
+    end
+end
+
+# sets only one queen on a random square
+# if occ = true -> random blockers on the board
+# if toPrint = true -> prints board and bitboards of possible queen attacks
+function alone_queen(occ::Bool, toPrint::Bool)
+    i = rand(1:64)
+    cleanBitBoards()
+    bitBoards[2] = setBitOn(getWhiteQueens(), i)
+    occ && setRandomOccupancy(getWhiteQueens())
+    if(toPrint)
+    printBoard()
+    println()
+    printBitBoard(getQueenAttacks(getWhiteQueens()))
+    println()
+    end
+end
+
+# other tests
+function random_rook_and_pawns()
+    cleanBitBoards()
+    i = rand(1:64)
+    bitBoards[5] = setBitOn(getWhiteRooks(), i)
+    setRandomOccupancy(getWhiteRooks())
 end
 
 """
@@ -432,13 +702,15 @@ Game runs from here right now: sort of MAIN
 """
 
 ###################################################MAIN################################################################
-#for i=1:64
-cleanBitBoards()
-bitBoards[5] = setBitOn(getWhiteRooks(), 1)
-magically = magic_rooks(getWhiteRooks())
-println(magically)
-#end
-#magic, attacks = magic_rooks(getWhiteRooks())
-#result = (occ * magic) >> (64 - 12)
-#printBitBoard(attacks[result])
+# INITIALIZE magic bitboards
+ROOK_ATTACKS = init_rook_attacks();
+BISHOP_ATTACKS = init_bishop_attacks();
+
+# Starting position and print by default
+setStartingPosition()
+printBoard()
+printState()
+
+
+# Tests
 #########################################################################################################################
