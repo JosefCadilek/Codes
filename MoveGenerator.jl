@@ -387,10 +387,10 @@ end
 
 # random UInt64 generator
 function random_uint64()::UInt64
-  u1::UInt64 = rand(UInt64) & 0xFFFF
-  u2::UInt64 = rand(UInt64) & 0xFFFF
-  u3::UInt64 = rand(UInt64) & 0xFFFF
-  u4::UInt64 = rand(UInt64) & 0xFFFF
+  u1::UInt64 = rand(UInt64) & 0x000000000000FFFF
+  u2::UInt64 = rand(UInt64) & 0x000000000000FFFF
+  u3::UInt64 = rand(UInt64) & 0x000000000000FFFF
+  u4::UInt64 = rand(UInt64) & 0x000000000000FFFF
   return u1 | (u2 << 16) | (u3 << 32) | (u4 << 48)
 end
 
@@ -401,7 +401,7 @@ end
 
 # Magic number generator for rooks
 function magic_rooks(bitsquare::UInt64)
-    fail = false
+    fail::Bool = false
     occupancies = []
     attacks = []
     used_attacks = Dict()
@@ -413,8 +413,8 @@ function magic_rooks(bitsquare::UInt64)
         push!(attacks, rook_attacks_run(occupancies[i + 1], bitsquare))
     end
 
-    for count=1:10000000
-            magic_number = random_uint64_fewbits()
+    for count=1:3000000
+            magic_number::UInt64 = random_uint64_fewbits()
             
             if (count_ones((attack_mask * magic_number) & 0xFF00000000000000) < 6) 
                 continue
@@ -437,10 +437,11 @@ function magic_rooks(bitsquare::UInt64)
                 end
             end
             if (!fail)
-                return println("0b" * bitstring(bitsquare) * " => $magic_number,")
+                println("0b" * bitstring(bitsquare) * " => 0b" * bitstring(magic_number) * ",")
+                return
             end
         end
-        return "---"
+        println("fail")
 end
 
 # Magic number generator for bishops
@@ -457,7 +458,7 @@ function magic_bishops(bitsquare::UInt64)
         push!(attacks, bishop_attacks_run(occupancies[i + 1], bitsquare))
     end
 
-    for count=1:10000000
+    for count=1:1000000
             magic_number = random_uint64_fewbits()
             
             if (count_ones((attack_mask * magic_number) & 0xFF00000000000000) < 6) 
@@ -478,13 +479,15 @@ function magic_bishops(bitsquare::UInt64)
                 elseif(get(used_attacks, magic_index, nothing) != attacks[index])
                     fail = true
                     used_attacks = Dict()
+                    magic_number = 0
                 end
             end
             if (!fail)
-                return println("0b" * bitstring(bitsquare) * " => $magic_number,")
+                println("0b" * bitstring(bitsquare) * " => 0b" * bitstring(magic_number) * ",")
+                return
             end
         end
-        return "---"
+        println("fail")
 end
 
 # Initialize a big Dictionary for rook attacks
@@ -568,17 +571,17 @@ These functions in partical return a bitboard that contains every single attacke
 # Functions that returns every possible pseudo-legal target square for a rook
 # It doesn't handle Allies and Pins
 function getRookAttacks(bitsquare::UInt64)::UInt64
-    relevant_occupancy = getOccupancies() & get(ECO_ROOK_MASKS, bitsquare, nothing)
-    magic_index = (relevant_occupancy * get(MAGIC_ROOK, bitsquare, nothing)) >> (64 - get(ROOK_RLBITS_BY_BITSQUARE, bitsquare, nothing))
-    return get(get(ROOK_ATTACKS, bitsquare, nothing), magic_index, nothing)
+    relevant_occupancy = getOccupancies() & ECO_ROOK_MASKS[bitsquare]
+    magic_index = (relevant_occupancy * MAGIC_ROOK[bitsquare]) >> (64 - ROOK_RLBITS_BY_BITSQUARE[bitsquare])
+    return ROOK_ATTACKS[bitsquare][magic_index]
 end
 
 # Functions that returns every possible pseudo-legal target square for a bishop
 # It doesn't handle Allies and Pins
 function getBishopAttacks(bitsquare::UInt64)::UInt64
-    relevant_occupancy = getOccupancies() & get(ECO_BISHOP_MASKS, bitsquare, nothing)
-    magic_index = (relevant_occupancy * get(MAGIC_BISHOP, bitsquare, nothing)) >> (64 - get(BISHOP_RLBITS_BY_BITSQUARE, bitsquare, nothing))
-    return get(get(BISHOP_ATTACKS, bitsquare, nothing), magic_index, nothing)
+    relevant_occupancy = getOccupancies() & ECO_BISHOP_MASKS[bitsquare]
+    magic_index = (relevant_occupancy * MAGIC_BISHOP[bitsquare]) >> (64 - BISHOP_RLBITS_BY_BITSQUARE[bitsquare])
+    return BISHOP_ATTACKS[bitsquare][magic_index]
 end
 
 # Functions that returns every possible pseudo-legal target square for a queen
@@ -590,27 +593,27 @@ end
 # Functions that returns every possible pseudo-legal target square for a knight
 # It doesn't handle Allies and Pins
 function getKingAttacks(bitsquare::UInt64)::UInt64
-    return get(KING_MASKS, bitsquare, nothing)
+    return KING_MASKS[bitsquare]
 end
 
 # Functions that returns every possible pseudo-legal target square for the king
 # It doesn't handle Allies and Safe Squares
 function getKnightAttacks(bitsquare::UInt64)::UInt64
-    return get(KNIGHT_MASKS, bitsquare, nothing)
+    return KNIGHT_MASKS[bitsquare]
 end
 
 # Functions that returns attack pseudo-legal target square for the white pawn
 # It doesn't handle Allies and Pins
 # TODO: last rank captures (promotion)
 function white_pawn_attacks(bitsquare::UInt64)::UInt64
-    return get(W_PAWN_ATTACKS, bitsquare, nothing)
+    return W_PAWN_ATTACKS[bitsquare]
 end
 
 # Functions that returns attack pseudo-legal target square for the black pawn
 # It doesn't handle Allies and Pins
 # TODO: last rank captures (promotion)
 function black_pawn_attacks(bitsquare::UInt64)::UInt64
-    return get(B_PAWN_ATTACKS, bitsquare, nothing)
+    return B_PAWN_ATTACKS[bitsquare]
 end
 
 """
@@ -710,7 +713,6 @@ BISHOP_ATTACKS = init_bishop_attacks();
 setStartingPosition()
 printBoard()
 printState()
-
 
 # Tests
 #########################################################################################################################
