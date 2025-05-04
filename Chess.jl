@@ -1,7 +1,7 @@
 include("DataManager.jl")
 
 """
-File containing the basis of our ChessGame rapresentation.
+File containing the basis of our ChessGame representation.
 - bitBoards
 - gameState
 - cleanBitBoards()
@@ -49,7 +49,7 @@ function setBitOff(bitboard::UInt64, id)::UInt64
     return xor(setBitOn(bitboard, id), (0x0000000000000001 << (id - 1)))
 end
 
-# from 1 to 0, from 0 to 1
+# pops a particular bit. it turns 1 if it was 0. it turns 0 if it was 1.
 function switchBit(bitboard::UInt64, id)::UInt64
     return xor(bitboard, (0x0000000000000001 << (id - 1)))
 end
@@ -430,5 +430,17 @@ end
 
 function getCheck()
     return gameState[9]
+end
+
+function getBitBoards()
+    return bitBoards
+end
+
+function getGameState()
+    return gameState
+end
+
+function getBittyBoards()
+    return bittyBoards
 end
 
