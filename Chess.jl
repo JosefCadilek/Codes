@@ -306,6 +306,71 @@ end
 display("text/plain", A)
 end
 
+function printBoard(BITBOARDS)
+    black_occ = BITBOARDS[7] | BITBOARDS[8] | BITBOARDS[9] | BITBOARDS[10] | BITBOARDS[11] | BITBOARDS[12]
+    white_occ = BITBOARDS[1] | BITBOARDS[2] | BITBOARDS[3] | BITBOARDS[4] | BITBOARDS[5] | BITBOARDS[6]
+    A=Matrix{Char}(undef, 8, 8) # The matrix to be printed
+for i=0:63
+    square=0b1000000000000000000000000000000000000000000000000000000000000000 >> i # A8 square that gets shifted
+    v = divrem(i, 8); # division with rem.
+    if((square & black_occ) == square)
+        if ((BITBOARDS[7] & square) != 0b0)
+            A[v[1] + 1, v[2] + 1]='k';
+            continue;
+        end
+        if ((BITBOARDS[8] & square) != 0b0)
+            A[v[1] + 1, v[2] + 1]='q';
+            continue;
+        end
+        if ((BITBOARDS[9] & square) != 0b0)
+            A[v[1] + 1, v[2] + 1]='b';
+            continue;
+        end
+        if ((BITBOARDS[10] & square) != 0b0)
+            A[v[1] + 1, v[2] + 1]='n';
+            continue;
+        end
+        if ((BITBOARDS[11] & square) != 0b0)
+            A[v[1] + 1, v[2] + 1]='r';
+            continue;
+        end
+        if ((BITBOARDS[12] & square) != 0b0)
+            A[v[1] + 1, v[2] + 1]='p';
+            continue;
+        end
+    elseif((square & white_occ) == square)
+        if ((BITBOARDS[1] & square) != 0b0)
+            A[v[1] + 1, v[2] + 1]='K';
+            continue;
+        end
+        if ((BITBOARDS[2] & square) != 0b0)
+            A[v[1] + 1, v[2] + 1]='Q';
+            continue;
+        end
+        if ((BITBOARDS[3] & square) != 0b0)
+            A[v[1] + 1, v[2] + 1]='B';
+            continue;
+        end
+        if ((BITBOARDS[4] & square) != 0b0)
+            A[v[1] + 1, v[2] + 1]='N';
+            continue;
+        end
+        if ((BITBOARDS[5] & square) != 0b0)
+            A[v[1] + 1, v[2] + 1]='R';
+            continue;
+        end
+        if ((BITBOARDS[6] & square) != 0b0)
+            A[v[1] + 1, v[2] + 1]='P';
+            continue;
+        end
+    else
+        A[v[1] + 1, v[2] + 1]='-';
+    end
+
+end
+display("text/plain", A)
+end
+
 
 # Prints crucial information about game state.
 function printState()

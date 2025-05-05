@@ -363,13 +363,16 @@ function goFullPseudo(BITBOARDS, GAMESTATE, BITTYBOARDS)
                 end
             end
             if(GAMESTATE[6] == true)
+                b1 = RANKS[1] & FILES[2]
                 c1 = RANKS[1] & FILES[3]
                 d1 = RANKS[1] & FILES[4]
                 index_c1 = trailing_zeros(c1) + 1
                 if(d1 & empty != 0)
                     if(c1 & empty != 0)
+                        if(b1 & empty != 0)
                         #Every square for castling queenside is empty
                         push!(moves, (index, index_c1, 1, 0, false, 2, false, false))
+                        end
                     end
                 end
             end
@@ -614,13 +617,16 @@ function goFullPseudo(BITBOARDS, GAMESTATE, BITTYBOARDS)
                 end
             end
             if(GAMESTATE[8] == true)
+                b8 = RANKS[8] & FILES[2]
                 c8 = RANKS[8] & FILES[3]
                 d8 = RANKS[8] & FILES[4]
                 index_c8 = trailing_zeros(c8) + 1
                 if(d8 & empty != 0)
                     if(c8 & empty != 0)
+                        if(b8 & empty != 0)
                         #Every square for castling queenside is empty
                         push!(moves, (index, index_c8, 7, 0, false, 2, false, false))
+                        end
                     end
                 end
             end
@@ -989,7 +995,7 @@ function makeMove(BITBOARDS, GAMESTATE, BITTYBOARDS, MOVE)
     end
     end
 
-        if(MOVE[3] == 5) # black rook
+        if(MOVE[3] == 11) # black rook
 
             #castling update for black
             if(source & a8 != 0) #Queenside
@@ -1038,7 +1044,7 @@ function makeMove(BITBOARDS, GAMESTATE, BITTYBOARDS, MOVE)
         end
 
 
-        #Updates castling for black in case of h8 a8 invasion
+        #Updates castling for white in case of h8 a8 invasion
         if(target & a1 != 0)#Queenside
             GAMESTATE[6] = false
         end
@@ -1060,8 +1066,8 @@ end
 
 #First legal moves generator.
 function goFullLegal(BITBOARDS, GAMESTATE, BITTYBOARDS)
-    pseudo_moves = goFullPseudo(BITBOARDS, GAMESTATE, BITTYBOARDS)
     legal_moves = []
+    pseudo_moves = goFullPseudo(BITBOARDS, GAMESTATE, BITTYBOARDS)
     for i=1:length(pseudo_moves)
         var = makeMove(copy(BITBOARDS), copy(GAMESTATE), copy(BITTYBOARDS), pseudo_moves[i])
         if(!isKingInCheck(var[1] , GAMESTATE[2]))
@@ -1069,21 +1075,29 @@ function goFullLegal(BITBOARDS, GAMESTATE, BITTYBOARDS)
                 if(pseudo_moves[i][3] == 1) #White king
                     if(pseudo_moves[i][6] == 1) #kingside white -> f1
                         if(!isSquareAttacked(BITBOARDS, RANKS[1] & FILES[6], WHITE))
+                            if(!isSquareAttacked(BITBOARDS, BITBOARDS[1], WHITE))
                             push!(legal_moves, pseudo_moves[i])
+                            end
                         end
                     else #queenside white -> d1
                         if(!isSquareAttacked(BITBOARDS, RANKS[1] & FILES[4], WHITE))
+                            if(!isSquareAttacked(BITBOARDS, BITBOARDS[1], WHITE))
                             push!(legal_moves, pseudo_moves[i])
+                            end
                         end
                     end
                 else #Black King
                     if(pseudo_moves[i][6] == 1) #kingside black -> f8
                         if(!isSquareAttacked(BITBOARDS, RANKS[8] & FILES[6], BLACK))
+                            if(!isSquareAttacked(BITBOARDS, BITBOARDS[7], BLACK))
                             push!(legal_moves, pseudo_moves[i])
+                            end
                         end
                     else #queenside white -> d8
                         if(!isSquareAttacked(BITBOARDS, RANKS[8] & FILES[4], BLACK))
+                            if(!isSquareAttacked(BITBOARDS, BITBOARDS[7], BLACK))
                             push!(legal_moves, pseudo_moves[i])
+                            end
                         end
                     end
                 end
@@ -1099,6 +1113,18 @@ end
     perft(bitboards, gamestate, bittyboards, depth)
 
 Conta le posizioni raggiungibili fino a `depth` mosse legali.
+
+
+RISULTATI OTTENUTI:
+https://www.chessprogramming.org/Perft_Results
+Per ora depth limitate perchè il generatore è lento, ma migliorabile...
+Per ora MAX: 119 milioni di posizioni valutate
+Starting Position: ok fino a depth 6
+Kiwipete Position: ok fino a depth 5
+Position 3: ok fino a depth 6
+Position 4: ok fino a depth 5
+Position 5: ok fino a depth 4
+Position 6: 
 """
 function perft(BITBOARDS, GAMESTATE, BITTYBOARDS, depth)
     depth == 0 && return 1
@@ -1116,6 +1142,32 @@ function perft(BITBOARDS, GAMESTATE, BITTYBOARDS, depth)
     return nodes
 end
 
+"""
+nuovi perft
+"""
+##################################################################
+
+
+function divide_perft(BITBOARDS, GAMESTATE, BITTYBOARDS, depth)
+    legal_moves = goFullLegal(BITBOARDS, GAMESTATE, BITTYBOARDS)
+    total_nodes = 0
+
+    for move in legal_moves
+        var = makeMove(copy(BITBOARDS), copy(GAMESTATE), copy(BITTYBOARDS), move)
+        nodes = perft(var[1], var[2], var[3], depth - 1)
+        println(BITSQUARES_TO_NOTATION[SQUARES_TO_BITBOARDS[move[1]]], "-", BITSQUARES_TO_NOTATION[SQUARES_TO_BITBOARDS[move[2]]], "$move: $nodes")
+        total_nodes += nodes
+    end
+
+    println("Total nodes: $total_nodes")
+end
+
+
+##################################################################
+
+
+
+
 function isSquareAttacked(BITBOARDS, BITSQUARE, COLOR)
     if(COLOR == WHITE)
         index = trailing_zeros(BITSQUARE) + 1
@@ -1131,6 +1183,9 @@ function isSquareAttacked(BITBOARDS, BITSQUARE, COLOR)
         if(white_pawn_attacks(index) & BITBOARDS[12] != 0)
             return true
         end
+        if(getKingAttacks(index) & BITBOARDS[7] != 0)
+            return true
+        end
     else
         index = trailing_zeros(BITSQUARE) + 1
         if(getKnightAttacks(index) & BITBOARDS[4] != 0)
@@ -1144,7 +1199,10 @@ function isSquareAttacked(BITBOARDS, BITSQUARE, COLOR)
         end
         if(black_pawn_attacks(index) & BITBOARDS[6] != 0)
             return true
-        end 
+        end
+        if(getKingAttacks(index) & BITBOARDS[1] != 0)
+            return true
+        end
     end
     return false
 end
@@ -1165,6 +1223,9 @@ function isKingInCheck(BITBOARDS, COLOR)
             if(white_pawn_attacks(index) & BITBOARDS[12] != 0)
                 return true
             end
+            if(getKingAttacks(index) & BITBOARDS[7] != 0)
+                return true
+            end
         else
             index = trailing_zeros(BITBOARDS[7]) + 1
             if(getKnightAttacks(index) & BITBOARDS[4] != 0)
@@ -1178,7 +1239,10 @@ function isKingInCheck(BITBOARDS, COLOR)
             end
             if(black_pawn_attacks(index) & BITBOARDS[6] != 0)
                 return true
-            end 
+            end
+            if(getKingAttacks(index) & BITBOARDS[1] != 0)
+                return true
+            end
         end
         return false
 end
