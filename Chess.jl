@@ -1,95 +1,72 @@
 include("DataManager.jl")
 
 """
-File containing the basis of our ChessGame representation.
-- bitBoards
-- gameState
-- cleanBitBoards()
-- printBitBoard()
-- setStartingPosition()
-- 
+File contenente la rappresentazione della scacchiera tramite bitboards e alcune funzioni utili come la traduzione FEN
 """
 
-WHITE::Bool=true
-BLACK::Bool=false
-
-# contains 12 key bitBoards: white king, queens, bishops, knights, rooks, pawns. For black the same, in the same order
-bitBoards = [0x0000000000000008, 0x0000000000000010, 0x0000000000000024, 0x0000000000000042, 0x0000000000000081, 0x000000000000ff00, 0x0800000000000000, 0x1000000000000000, 0x2400000000000000, 0x4200000000000000, 0x8100000000000000, 0x00ff000000000000]
-# additional bitBoards, we will call them bittyBoards: for now only enpassant
-bittyBoards = [0x0000000000000000]
-# Holds: running, turn, decisive, winner, K, Q, k, q, CHECK
-gameState = [true, WHITE, false, false, true, true, true, true, false]
-
-"""
----------------------------------------------------
-- a8, b8, c8, ...                                   the bit with major value is the top left corner,
-- a7                                                the value one is the h1 square
-- a6
-- a5
-- .
-- .
-- .
--
----------------------------------------------------
-"""
-
-# Returns the least significant bit set only
-function leastSignificantBit(bitboard::UInt64)::UInt64
-    return bitboard & ~(bitboard - 1)
+mutable struct Position
+    pawns::UInt64
+    knights::UInt64
+    bishops::UInt64
+    rooks::UInt64
+    queens::UInt64
+    kings::UInt64
+    black_occ::UInt64 #pezzi neri
+    white_occ::UInt64 #pezzi bianchi
+    enpassant::UInt64 #casa enpassant
+    turn::Bool #turn = true se tocca al bianco, mentre è false se tocca il nero
+    w_kingside::Bool #arrocco corto bianco
+    w_queenside::Bool #arrocco lungo bianco
+    b_kingside::Bool #arrocco corto nero
+    b_queenside::Bool #arrocco lungo nero
 end
 
-# Turns on bit of given bitboard and ID
-# It returns the modified bitboard but it does not modify the inputed variable.
-function setBitOn(bitboard::UInt64, id)::UInt64
-    return bitboard | (0x0000000000000001 << (id - 1))
+POSITION = Position(0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, true, true, true, true, true)
+
+#imposta la posizione iniziale
+function setStartingPosition(p::Position)
+    pawns = 0x00FF00000000FF00
+    knights = 0x0000000000000042 | 0x4200000000000000
+    bishops = 0x0000000000000024 | 0x2400000000000000
+    rooks = 0x0000000000000081 | 0x8100000000000000
+    queens = 0x0000000000000010 | 0x1000000000000000
+    kings = 0x0000000000000008 | 0x0800000000000000
+
+    white_occ = 0x000000000000FF00 | 0x0000000000000042 | 0x0000000000000024 | 0x0000000000000081 | 0x0000000000000010 | 0x0000000000000008
+    black_occ = 0x00FF000000000000 | 0x4200000000000000 | 0x2400000000000000 | 0x8100000000000000 | 0x1000000000000000 | 0x0800000000000000
+
+    p.pawns = pawns
+    p.knights = knights
+    p.bishops = bishops
+    p.rooks = rooks
+    p.queens = queens
+    p.kings = kings
+    p.white_occ = white_occ
+    p.black_occ = black_occ
+    p.enpassant = 0x0
+    p.turn = true
+    p.w_kingside = true
+    p.w_queenside = true
+    p.b_kingside = true
+    p.b_queenside = true
 end
 
-# UGLY written function: sets off a bit in a given position. (TODO: should use dictionaries maybe)
-function setBitOff(bitboard::UInt64, id)::UInt64
-    return xor(setBitOn(bitboard, id), (0x0000000000000001 << (id - 1)))
-end
-
-# pops a particular bit. it turns 1 if it was 0. it turns 0 if it was 1.
-function switchBit(bitboard::UInt64, id)::UInt64
-    return xor(bitboard, (0x0000000000000001 << (id - 1)))
-end
-
-# Given a bitBoard it prints it
+#Stampa una bitboard nel terminale
 function printBitBoard(bitboard::UInt64)
     for i=1:8:64
         println(SubString(bitstring(bitboard), i:(i+7)))
     end
 end
 
-# sets every bitboard, bittyboard and gamestate to 0 or false. Except of running.
-function cleanBitBoards()
-    bitBoards .= 0x0000000000000000
-    bittyBoards .= 0x0000000000000000
-    gameState .= [true, false, false, false, false, false, false, false, false]
+#Prende in input una bitboard e restituisce una bitboard contenente
+#esclusivamente il bit acceso meno rilevante
+@inline
+function leastSignificantBit(bitboard::UInt64)
+    bitboard & ~(bitboard - 1)
 end
 
-# sets bitboards, bittyboards and gamestate as in the classical starting chess game position.
-function setStartingPosition()
-    bitBoards .= [0x0000000000000008, 0x0000000000000010, 0x0000000000000024, 0x0000000000000042, 0x0000000000000081, 0x000000000000ff00, 0x0800000000000000, 0x1000000000000000, 0x2400000000000000, 0x4200000000000000, 0x8100000000000000, 0x00ff000000000000]
-    bittyBoards .= [0x0000000000000000]
-    gameState .= [true, WHITE, false, false, true, true, true, true, false]
-end
-
-
-##################################
-#TODO list
-# 1) getFENfromBitBoards -> takes bitBitboards and gamestate and returns a fen string associated with them.
-##################################
-
-
-
-
-"""
-    Takes a FEN string as input and outputs bitBoards, bittyBoards with gameState
-    //TODO: Check and move counter
-"""
-function bitBoardsfromFEN(fen::String)
-    # empty bitboards
+#Funzione che cambia la posizione data una stringa FEN
+function setPositionFromFEN(p::Position, fen::String)
     white_king  = 0x0000000000000000
     white_queens  = 0x0000000000000000
     white_bishops = 0x0000000000000000
@@ -108,13 +85,12 @@ function bitBoardsfromFEN(fen::String)
     b_cast_queen=false;
     w_cast_king=false;
     w_cast_queen=false;
-    # split FEN in pieces
+    # split FEN
     fenPieces = split(fen, r"\s+");
-    count = 0; # counter from 1 to 63
+    count = 0;
 
-    #create bitboards
+    #riempiamo le bitboards
     for letter in fenPieces[1]
-        # Create A8 square and shift
         square=0b1000000000000000000000000000000000000000000000000000000000000000 >> count;
         if(letter >= '1' && letter <='8')
             count+=letter-'0';
@@ -209,92 +185,76 @@ if(!occursin('-', fenPieces[4]))
     EP = get(SQUARES_TO_BITBOARDS, fenPieces[4], 0x0000000000000000)
     printBitBoard(EP)
 end
-    return [white_king, white_queens, white_bishops, white_knights, white_rooks, white_pawns, black_king, black_queens, black_bishops, black_knights, black_rooks, black_pawns], [true, playing_turn, false, false, w_cast_king, w_cast_queen, b_cast_king, b_cast_queen, false], [EP];
+
+    p.pawns = white_pawns | black_pawns
+    p.knights = white_knights | black_knights
+    p.bishops = white_bishops | black_bishops
+    p.rooks = white_rooks | black_rooks
+    p.queens = white_queens | black_queens
+    p.kings = white_king | black_king
+    p.white_occ = white_pawns | white_knights | white_bishops | white_rooks | white_queens | white_king
+    p.black_occ = black_pawns | black_knights | black_bishops | black_rooks | black_queens | black_king
+    p.enpassant = EP
+    p.turn = playing_turn
+    p.w_kingside = w_cast_king
+    p.w_queenside = w_cast_queen
+    p.b_kingside = b_cast_king
+    p.b_queenside = b_cast_queen
 end
 
-
-"""
-Sets bitboards and gamestate from a FEN string
-"""
-function setBitBoardsFromFEN(fen::String)
-    newValues = bitBoardsfromFEN(fen)
-    bitBoards .= newValues[1]
-    gameState .= newValues[2]
-    bittyBoards .= newValues[3]
-end
-
-
-"""
-These functions sets bitboards, gamestate and bittyboards if inputed with proper array
-"""
-function setBitBoards(bitboards)
-    bitBoards .= bitboards
-end
-
-function setGameState(gamestate)
-    gameState .= gamestate
-end
-
-function setBittyBoards(bittyboards)
-    bitBoards .= bittyboards
-end
-
-
-"""
-Prints the board in a human representation
-"""
-function printBoard()
-    A=Matrix{Char}(undef, 8, 8) # The matrix to be printed
+#Stampa la scacchiera e lo stato nel terminale
+function printBoard(p::Position)
+    A=Matrix{Char}(undef, 8, 8) # matrice da stampare
 for i=0:63
-    square=0b1000000000000000000000000000000000000000000000000000000000000000 >> i # A8 square that gets shifted
-    v = divrem(i, 8); # division with rem.
-    if((square & getBlackOccupancies()) == square)
-        if ((getBlackKing() & square) != 0b0)
+    square=0b1000000000000000000000000000000000000000000000000000000000000000 >> i # shift della casa a8
+    v = divrem(i, 8); # divisione con resto
+    if((square & p.black_occ) == square)
+        if ((p.kings & p.black_occ & square) != 0b0)
             A[v[1] + 1, v[2] + 1]='k';
             continue;
         end
-        if ((getBlackQueens() & square) != 0b0)
+        if ((p.queens & p.black_occ & square) != 0b0)
             A[v[1] + 1, v[2] + 1]='q';
             continue;
         end
-        if ((getBlackBishops() & square) != 0b0)
+        if ((p.bishops & p.black_occ & square) != 0b0)
             A[v[1] + 1, v[2] + 1]='b';
             continue;
         end
-        if ((getBlackKnights() & square) != 0b0)
+        if ((p.knights & p.black_occ & square) != 0b0)
             A[v[1] + 1, v[2] + 1]='n';
             continue;
         end
-        if ((getBlackRooks() & square) != 0b0)
+        if ((p.rooks & p.black_occ & square) != 0b0)
             A[v[1] + 1, v[2] + 1]='r';
             continue;
         end
-        if ((getBlackPawns() & square) != 0b0)
+        if ((p.pawns & p.black_occ & square) != 0b0)
             A[v[1] + 1, v[2] + 1]='p';
             continue;
         end
-    elseif((square & getWhiteOccupancies()) == square)
-        if ((getWhiteKing() & square) != 0b0)
+    elseif((square & p.white_occ) == square)
+        if ((p.kings & p.white_occ & square) != 0b0)
             A[v[1] + 1, v[2] + 1]='K';
             continue;
         end
-        if ((getWhiteQueens() & square) != 0b0)
+        if ((p.queens & p.white_occ & square) != 0b0)
             A[v[1] + 1, v[2] + 1]='Q';
             continue;
         end
-        if ((getWhiteBishops() & square) != 0b0)
+        if ((p.bishops & p.white_occ & square) != 0b0)
             A[v[1] + 1, v[2] + 1]='B';
             continue;
         end
-        if ((getWhiteKnights() & square) != 0b0)
+        if ((p.knights & p.white_occ & square) != 0b0)
             A[v[1] + 1, v[2] + 1]='N';
             continue;
         end
-        if ((getWhiteRooks() & square) != 0b0)
+        if ((p.rooks & p.white_occ & square) != 0b0)
             A[v[1] + 1, v[2] + 1]='R';
             continue;
         end
-        if ((getWhitePawns() & square) != 0b0)
+        if ((p.pawns & p.white_occ & square) != 0b0)
             A[v[1] + 1, v[2] + 1]='P';
             continue;
         end
@@ -304,208 +264,10 @@ for i=0:63
 
 end
 display("text/plain", A)
-end
-
-function printBoard(BITBOARDS)
-    black_occ = BITBOARDS[7] | BITBOARDS[8] | BITBOARDS[9] | BITBOARDS[10] | BITBOARDS[11] | BITBOARDS[12]
-    white_occ = BITBOARDS[1] | BITBOARDS[2] | BITBOARDS[3] | BITBOARDS[4] | BITBOARDS[5] | BITBOARDS[6]
-    A=Matrix{Char}(undef, 8, 8) # The matrix to be printed
-for i=0:63
-    square=0b1000000000000000000000000000000000000000000000000000000000000000 >> i # A8 square that gets shifted
-    v = divrem(i, 8); # division with rem.
-    if((square & black_occ) == square)
-        if ((BITBOARDS[7] & square) != 0b0)
-            A[v[1] + 1, v[2] + 1]='k';
-            continue;
-        end
-        if ((BITBOARDS[8] & square) != 0b0)
-            A[v[1] + 1, v[2] + 1]='q';
-            continue;
-        end
-        if ((BITBOARDS[9] & square) != 0b0)
-            A[v[1] + 1, v[2] + 1]='b';
-            continue;
-        end
-        if ((BITBOARDS[10] & square) != 0b0)
-            A[v[1] + 1, v[2] + 1]='n';
-            continue;
-        end
-        if ((BITBOARDS[11] & square) != 0b0)
-            A[v[1] + 1, v[2] + 1]='r';
-            continue;
-        end
-        if ((BITBOARDS[12] & square) != 0b0)
-            A[v[1] + 1, v[2] + 1]='p';
-            continue;
-        end
-    elseif((square & white_occ) == square)
-        if ((BITBOARDS[1] & square) != 0b0)
-            A[v[1] + 1, v[2] + 1]='K';
-            continue;
-        end
-        if ((BITBOARDS[2] & square) != 0b0)
-            A[v[1] + 1, v[2] + 1]='Q';
-            continue;
-        end
-        if ((BITBOARDS[3] & square) != 0b0)
-            A[v[1] + 1, v[2] + 1]='B';
-            continue;
-        end
-        if ((BITBOARDS[4] & square) != 0b0)
-            A[v[1] + 1, v[2] + 1]='N';
-            continue;
-        end
-        if ((BITBOARDS[5] & square) != 0b0)
-            A[v[1] + 1, v[2] + 1]='R';
-            continue;
-        end
-        if ((BITBOARDS[6] & square) != 0b0)
-            A[v[1] + 1, v[2] + 1]='P';
-            continue;
-        end
-    else
-        A[v[1] + 1, v[2] + 1]='-';
-    end
-
-end
-display("text/plain", A)
-end
-
-
-# Prints crucial information about game state.
-function printState()
-    if(getRunningGameState())
-        if (getTurnGameState() == WHITE)
-            println("game running: WHITE to move")
-        else
-            println("game running: BLACK to move!")
-        end
-    else
-        if(getDecisiveGameState())
-            if(getWinnerGameState() == WHITE)
-            println("Game Over: WHITE has WON!")
-            else
-                println("Game Over: BLACK has WON!")
-            end
-        else
-            println("Draw :(")
-        end
-    end
-end
-
-"""
-get functions for bitboards and gamestate
-"""
-function getWhiteKing()
-    return bitBoards[1]
-end
-
-function getWhiteQueens()
-    return bitBoards[2]
-end
-
-function getWhiteBishops()
-    return bitBoards[3]
-end
-
-function getWhiteKnights()
-    return bitBoards[4]
-end
-
-function getWhiteRooks()
-    return bitBoards[5]
-end
-
-function getWhitePawns()
-    return bitBoards[6]
-end
-
-function getBlackKing()
-    return bitBoards[7]
-end
-
-function getBlackQueens()
-    return bitBoards[8]
-end
-
-function getBlackBishops()
-    return bitBoards[9]
-end
-
-function getBlackKnights()
-    return bitBoards[10]
-end
-
-function getBlackRooks()
-    return bitBoards[11]
-end
-
-function getBlackPawns()
-    return bitBoards[12]
-end
-
-function getWhiteOccupancies()
-    return getWhiteKing() | getWhiteQueens() | getWhiteBishops() | getWhiteKnights() | getWhiteRooks() | getWhitePawns()
-end
-
-function getBlackOccupancies()
-    return getBlackKing() | getBlackQueens() | getBlackBishops() | getBlackKnights() | getBlackRooks() | getBlackPawns()
-end
-
-function getOccupancies()
-    return getWhiteOccupancies() | getBlackOccupancies()
-end
-
-# returns current EnPassant square
-function getEPsquare()
-    return bittyBoards[1]
-end
-
-function getRunningGameState()
-    return gameState[1]
-end
-
-function getTurnGameState()
-    return gameState[2]    
-end
-
-function getDecisiveGameState()
-    return gameState[3]
-end
-
-function getWinnerGameState()
-    return gameState[4]
-end
-
-function getWhiteCastleKingside()
-    return gameState[5]
-end
-
-function getWhiteCastleQueenside()
-    return gameState[6]
-end
-
-function getBlackCastleKingside()
-    return gameState[7]
-end
-
-function getBlackCastleQueenside()
-    return gameState[8]
-end
-
-function getCheck()
-    return gameState[9]
-end
-
-function getBitBoards()
-    return bitBoards
-end
-
-function getGameState()
-    return gameState
-end
-
-function getBittyBoards()
-    return bittyBoards
+println()
+println("-------------STATO--------------")
+println("turno: ", (p.turn ? "BIANCO" : "NERO"))
+println("enpassant: ", (p.enpassant != 0 ? BITSQUARES_TO_NOTATION[p.enpassant] : "-"))
+println("arrocchi: ", (p.w_kingside ? "K" : "-"), (p.w_queenside ? "Q" : "-"), (p.b_kingside ? "k" : "-"), (p.b_queenside ? "q" : "-"))
 end
 

@@ -2,522 +2,144 @@ include("Chess.jl")
 include("MoveData.jl")
 
 """
-Legal move generator step by step
-
-Chess Rules:
-documantion about the rules of chess are taken from FIDE: https://handbook.fide.com/chapter/E012023 
+File contenente ciò che riguarda la generazione di mosse
+(tranne l'effetturare mosse con aggiornamento di hash Zobrist che si trova in Eval.jl)
 """
 
-function isSquareAttackedByBlack(bitsquare::UInt64)
-        #Ranks and Files check
-        if((getBishopAttacks(bitsquare) & (getBlackBishops() | getBlackQueens())) != 0)
-            return true
-        end
-        if((getRookAttacks(bitsquare) & (getBlackRooks() | getBlackQueens())) != 0)
-            return true
-        end
-        #Knight check
-        if((getKnightAttacks(bitsquare) & getBlackKnights()) != 0)
-            return true
-        end
-        if((white_pawn_attacks(bitsquare) & getBlackPawns()) != 0)
-            return true
-        end
-        if((getKingAttacks(getBlackKing()) & bitsquare) != 0)
-            return true
-        end
-        return false
+mutable struct Move
+    source::UInt8
+    target::UInt8
+    moving_piece::UInt8
+    promotion::UInt8
+    enpassant::Bool
+    castling::UInt8
+    double_push::Bool
+    capture::Bool
 end
 
-function getEnemyAttackersOnSquare(bitsquare::UInt64, turn)
-    if(turn == WHITE)
-    DAD_Attackers = getBishopAttacks(bitsquare) & (getBlackBishops() | getBlackQueens())
-    LINE_Attackers = getRookAttacks(bitsquare) & (getBlackRooks() | getBlackQueens())
-    KNIGHT_Attackers = getKnightAttacks(bitsquare) & getBlackKnights()
-    PAWN_Attackers = white_pawn_attacks(bitsquare) & getBlackPawns()
-    KING_Attackers = getKingAttacks(getBlackKing()) & bitsquare
-    Attackers = DAD_Attackers | LINE_Attackers | KNIGHT_Attackers | PAWN_Attackers | KING_Attackers
-    return Attackers
-else #Black Turn
-    DAD_Attackers = getBishopAttacks(bitsquare) & (getWhiteBishops() | getWhiteQueens())
-    LINE_Attackers = getRookAttacks(bitsquare) & (getWhiteRooks() | getWhiteQueens())
-    KNIGHT_Attackers = getKnightAttacks(bitsquare) & getWhiteKnights()
-    PAWN_Attackers = black_pawn_attacks(bitsquare) & getWhitePawns()
-    KING_Attackers = getKingAttacks(getWhiteKing()) & bitsquare
-    Attackers = DAD_Attackers | LINE_Attackers | KNIGHT_Attackers | PAWN_Attackers | KING_Attackers
-    return Attackers
-end
+mutable struct MoveList
+    moves::Vector{Move}
+    amount::Int
 end
 
+# Riempie movelist con le catture pseudo-legali disponibili in una posizione.
+# Queste catture devono essere filtrate per legalità.
+# Nelle passate versioni tale sistema era utilizzato anche per le mosse standard.
+function goCapturesPseudo(p::Position, move_list::MoveList)
+    move_list.amount = 0
 
-#TODO: check if is correct
-function isSquareAttackedByWhite(bitsquare::UInt64)
-    #Ranks and Files check
-    if((getBishopAttacks(bitsquare) & (getWhiteBishops() | getWhiteQueens())) != 0)
-        #println("Diag")
-        return true
-    end
-    if((getRookAttacks(bitsquare) & (getWhiteRooks() | getWhiteQueens())) != 0)
-        #println("File or Rank")
-        return true
-    end
-    #Knight check
-    if((getKnightAttacks(bitsquare) & getWhiteKnights()) != 0)
-        #println("Knight")
-        return true
-    end
-    if((black_pawn_attacks(bitsquare) & getWhitePawns()) != 0)
-        #println("Pawn")
-        return true
-    end
-    if((getKingAttacks(getWhiteKing()) & bitsquare) != 0)
-        #println("King")
-        return true
-    end
-    return false
-end
+    if(p.turn == true)
 
-#Run only if in check
-function isWhiteInDoubleCheck()
-    check_amount=0
-    bitsquare = getWhiteKing()
-    if((getBishopAttacks(bitsquare) & (getBlackBishops() | getBlackQueens())) != 0)
-        check_amount+=count_ones(getBishopAttacks(bitsquare) & (getBlackBishops() | getBlackQueens()))
-        if(check_amount >= 2)
-            return true
-        end
-    end
-    if((getRookAttacks(bitsquare) & (getBlackRooks() | getBlackQueens())) != 0)
-        check_amount+=count_ones((getRookAttacks(bitsquare) & (getBlackRooks() | getBlackQueens())))
-        if(check_amount >= 2)
-            return true
-        end
-    end
-    #Knight check
-    if((getKnightAttacks(bitsquare) & getBlackKnights()) != 0)
-        check_amount+=count_ones((getKnightAttacks(bitsquare) & getBlackKnights()))
-        if(check_amount >= 2)
-            return true
-        end
-    end
-    if((white_pawn_attacks(bitsquare) & getBlackPawns()) != 0)
-        check_amount+=count_ones((white_pawn_attacks(bitsquare) & getBlackPawns()))
-        if(check_amount >= 2)
-            return true
-        end
-    end
-    return false
-end
-
-function isBlackInDoubleCheck()
-    check_amount=0
-    bitsquare = getBlackKing()
-    if((getBishopAttacks(bitsquare) & (getWhiteBishops() | getWhiteQueens())) != 0)
-        check_amount+=count_ones(getBishopAttacks(bitsquare) & (getWhiteBishops() | getWhiteQueens()))
-        if(check_amount >= 2)
-            return true
-        end
-    end
-    if((getRookAttacks(bitsquare) & (getWhiteRooks() | getWhiteQueens())) != 0)
-        check_amount+=count_ones((getRookAttacks(bitsquare) & (getWhiteRooks() | getWhiteQueens())))
-        if(check_amount >= 2)
-            return true
-        end
-    end
-    #Knight check
-    if((getKnightAttacks(bitsquare) & getWhiteKnights()) != 0)
-        check_amount+=count_ones((getKnightAttacks(bitsquare) & getWhiteKnights()))
-        if(check_amount >= 2)
-            return true
-        end
-    end
-    if((black_pawn_attacks(bitsquare) & getWhitePawns()) != 0)
-        check_amount+=count_ones((black_pawn_attacks(bitsquare) & getWhitePawns()))
-        if(check_amount >= 2)
-            return true
-        end
-    end
-    return false
-end
-
-
-
-#############################################################################################################################################################
-#############################################################################################################################################################
-#############################################################################################################################################################
-
-
-#This should be a complete PSEUDO-Legal-MoveGenerator. Takes as input a position (bitboards) and gamestate
-function getPseudoMovesGivenPosition(BITBOARDS, GAMESTATE)
-    moves = []
-    #We name the variables for clarity of the code
-    w_king = BITBOARDS[1]
-    w_queens = BITBOARDS[2]
-    w_bishops = BITBOARDS[3]
-    w_knights = BITBOARDS[4]
-    w_rooks = BITBOARDS[5]
-    w_pawns = BITBOARDS[6]
-
-    b_king = BITBOARDS[7]
-    b_queens = BITBOARDS[8]
-    b_bishops = BITBOARDS[9]
-    b_knights = BITBOARDS[10]
-    b_rooks = BITBOARDS[11]
-    b_pawns = BITBOARDS[12]
-
-    if(GAMESTATE[2] == WHITE)
-        enemyOrEmpty = ~(w_king | w_queens | w_bishops | w_knights | w_rooks | w_pawns)
-
-        #KING MOVES
-        if(w_king != 0)
-            index = trailing_zeros(w_king) + 1
-            push!(moves, (w_king, KING_MASKS_BY_ID[index] & enemyOrEmpty))
-        end
-
-        #QUEEN MOVES
-        if(w_queens != 0)
-            temp = w_queens
-            for i=1:count_ones(w_queens)
-                least_bit = leastSignificantBit(temp)
-                index = trailing_zeros(least_bit) + 1
-                push!(moves, (least_bit, getQueenAttacks(BITBOARDS, index) & enemyOrEmpty))
-                temp &= ~least_bit
-            end
-        end
-
-        #BISHOP MOVES
-        if(w_bishops != 0)
-            temp = w_bishops
-            for i=1:count_ones(w_bishops)
-                least_bit = leastSignificantBit(temp)
-                index = trailing_zeros(least_bit) + 1
-                push!(moves, (least_bit, getBishopAttacks(BITBOARDS, index) & enemyOrEmpty))
-                temp &= ~least_bit
-            end
-        end
-
-        #KNIGHT MOVES
-        if(w_knights != 0)
-            temp = w_knights
-            for i=1:count_ones(w_knights)
-                least_bit = leastSignificantBit(temp)
-                index = trailing_zeros(least_bit) + 1
-                push!(moves, (least_bit, getKnightAttacks(index) & enemyOrEmpty))
-                temp &= ~least_bit
-            end
-        end
-
-        #ROOK MOVES
-        if(w_rooks != 0)
-            temp = w_rooks
-            for i=1:count_ones(w_rooks)
-                least_bit = leastSignificantBit(temp)
-                index = trailing_zeros(least_bit) + 1
-                push!(moves, (least_bit, getRookAttacks(BITBOARDS, index) & enemyOrEmpty))
-                temp &= ~least_bit
-            end
-        end
-
-        #PAWN MOVES
-        if(w_pawns != 0)
-            temp = w_pawns
-            for i=1:count_ones(w_pawns)
-                least_bit = leastSignificantBit(temp)
-                index = trailing_zeros(least_bit) + 1
-                black_occ = BITBOARDS[7] | BITBOARDS[8] | BITBOARDS[9] | BITBOARDS[10] | BITBOARDS[11] | BITBOARDS[12]
-                push!(moves, (least_bit, (white_pawn_attacks(index) & black_occ) | (w_pawns_shift(BITBOARDS) & FILES[8 - ((index - 1)% 8)])))
-                temp &= ~least_bit
-            end
-        end
-
-    else #BLACK turn
-
-        enemyOrEmpty = ~(b_king | b_queens | b_bishops | b_knights | b_rooks | b_pawns)
-
-        #KING MOVES
-        if(b_king != 0)
-            index = trailing_zeros(b_king) + 1
-            push!(moves, (b_king, KING_MASKS_BY_ID[index] & enemyOrEmpty))
-        end
-
-        #QUEEN MOVES
-        if(b_queens != 0)
-            temp = b_queens
-            for i=1:count_ones(b_queens)
-                least_bit = leastSignificantBit(temp)
-                index = trailing_zeros(least_bit) + 1
-                push!(moves, (least_bit, getQueenAttacks(BITBOARDS, index) & enemyOrEmpty))
-                temp &= ~least_bit
-            end
-        end
-
-        #BISHOP MOVES
-        if(b_bishops != 0)
-            temp = b_bishops
-            for i=1:count_ones(b_bishops)
-                least_bit = leastSignificantBit(temp)
-                index = trailing_zeros(least_bit) + 1
-                push!(moves, (least_bit, getBishopAttacks(BITBOARDS, index) & enemyOrEmpty))
-                temp &= ~least_bit
-            end
-        end
-
-        #KNIGHT MOVES
-        if(b_knights != 0)
-            temp = b_knights
-            for i=1:count_ones(b_knights)
-                least_bit = leastSignificantBit(temp)
-                index = trailing_zeros(least_bit) + 1
-                push!(moves, (least_bit, getKnightAttacks(index) & enemyOrEmpty))
-                temp &= ~least_bit
-            end
-        end
-
-        #ROOK MOVES
-        if(b_rooks != 0)
-            temp = b_rooks
-            for i=1:count_ones(b_rooks)
-                least_bit = leastSignificantBit(temp)
-                index = trailing_zeros(least_bit) + 1
-                push!(moves, (least_bit, getRookAttacks(BITBOARDS, index) & enemyOrEmpty))
-                temp &= ~least_bit
-            end
-        end
-
-        #PAWN MOVES
-        if(b_pawns != 0)
-            temp = b_pawns
-            for i=1:count_ones(b_pawns)
-                least_bit = leastSignificantBit(temp)
-                index = trailing_zeros(least_bit) + 1
-                white_occ = BITBOARDS[1] | BITBOARDS[2] | BITBOARDS[3] | BITBOARDS[4] | BITBOARDS[5] | BITBOARDS[6]
-                push!(moves, (least_bit, (black_pawn_attacks(index) & white_occ) | (b_pawns_shift(BITBOARDS) & FILES[8 - ((index - 1)% 8)])))
-                temp &= ~least_bit
-            end
-        end
-    end
-    return moves
-end
-
-#Every single Pseudo-move
-#Moves will be listed in the following way: (source_square, target_square, piece_type, promotion, enpassant, castling, double push, capture)
-#source_code as an id of the square, target square the same, piece_type from 1 to 12 as in the bitBoards (Color will be signed)
-#four types of promotion in Q-R-N-B, enpassant true or false, 0 no castling, 1 castling kingside, 2 castling queenside, double push true or false, capture true or false
-function goFullPseudo(BITBOARDS, GAMESTATE, BITTYBOARDS)
-    moves = []
-    #We name the variables for clarity of the code
-    w_king = BITBOARDS[1]
-    w_queens = BITBOARDS[2]
-    w_bishops = BITBOARDS[3]
-    w_knights = BITBOARDS[4]
-    w_rooks = BITBOARDS[5]
-    w_pawns = BITBOARDS[6]
-
-    b_king = BITBOARDS[7]
-    b_queens = BITBOARDS[8]
-    b_bishops = BITBOARDS[9]
-    b_knights = BITBOARDS[10]
-    b_rooks = BITBOARDS[11]
-    b_pawns = BITBOARDS[12]
-
-    black_occ = b_king | b_queens | b_bishops | b_knights | b_rooks | b_pawns
-    white_occ = w_king | w_queens | w_bishops | w_knights | w_rooks | w_pawns
-
-    if(GAMESTATE[2] == WHITE)
-        enemyOrEmpty = ~white_occ
-
-        #KING MOVES
-        if(w_king != 0)
-            empty = ~(black_occ | white_occ)
-            index = trailing_zeros(w_king) + 1
-            attacks = getKingAttacks(index) & enemyOrEmpty
-            captures = attacks & black_occ
-            quiet_moves = attacks & ~black_occ
+        # mosse del re
+        if(p.kings & p.white_occ != 0)
+            index = trailing_zeros(p.kings & p.white_occ) + 1
+            captures = getKingAttacks(index) & p.black_occ
             if(captures != 0)
                 temp2 = captures
                     for i=1:count_ones(captures)
                     least_bit2 = leastSignificantBit(temp2)
                     index2 = trailing_zeros(least_bit2) + 1
-                    push!(moves, (index, index2, 1, 0, false, 0, false, true))
+                    addMove(move_list, UInt8(index), UInt8(index2), 0x06, 0x00, false, 0x00, false, true)
                     temp2 &= ~least_bit2
                     end
             end
-            if(quiet_moves != 0)
-                temp2 = quiet_moves
-                        for j=1:count_ones(quiet_moves)
-                        least_bit2 = leastSignificantBit(temp2)
-                        index2 = trailing_zeros(least_bit2) + 1
-                        push!(moves, (index, index2, 1, 0, false, 0, false, false))
-                        temp2 &= ~least_bit2
-                        end
-            end
-            if(GAMESTATE[5] == true) #check if pseudo-legal castling kingside is possible. (given or updated information about history moves of king and rooks)
-                f1 = RANKS[1] & FILES[6]
-                g1 = RANKS[1] & FILES[7]
-                index_g1 = trailing_zeros(g1) + 1
-                if(f1 & empty != 0)
-                    if(g1 & empty != 0)
-                        #Every square for castling kingside is empty
-                        push!(moves, (index, index_g1, 1, 0, false, 1, false, false))
-                    end
-                end
-            end
-            if(GAMESTATE[6] == true)
-                b1 = RANKS[1] & FILES[2]
-                c1 = RANKS[1] & FILES[3]
-                d1 = RANKS[1] & FILES[4]
-                index_c1 = trailing_zeros(c1) + 1
-                if(d1 & empty != 0)
-                    if(c1 & empty != 0)
-                        if(b1 & empty != 0)
-                        #Every square for castling queenside is empty
-                        push!(moves, (index, index_c1, 1, 0, false, 2, false, false))
-                        end
-                    end
-                end
-            end
         end
-        #QUEEN MOVES
-        if(w_queens != 0)
-            temp = w_queens
-            for i=1:count_ones(w_queens)
+        # mosse di regina
+        if(p.queens & p.white_occ != 0)
+            temp = p.queens & p.white_occ
+            for i=1:count_ones(p.queens & p.white_occ)
                 least_bit = leastSignificantBit(temp)
                 index = trailing_zeros(least_bit) + 1
-                attacks = getQueenAttacks(BITBOARDS, index) & enemyOrEmpty
-                captures = attacks & black_occ
-                quiet_moves = attacks & ~black_occ
+                captures = getQueenAttacks(p, index) & p.black_occ
                 if(captures != 0)
                 temp2 = captures
                     for j=1:count_ones(captures)
                     least_bit2 = leastSignificantBit(temp2)
                     index2 = trailing_zeros(least_bit2) + 1
-                    push!(moves, (index, index2, 2, 0, false, 0, false, true))
+                    addMove(move_list, UInt8(index), UInt8(index2), 0x05, 0x00, false, 0x00, false, true)
                     temp2 &= ~least_bit2
                     end
                 end
-                if(quiet_moves != 0)
-                    temp2 = quiet_moves
-                        for k=1:count_ones(quiet_moves)
-                        least_bit2 = leastSignificantBit(temp2)
-                        index2 = trailing_zeros(least_bit2) + 1
-                        push!(moves, (index, index2, 2, 0, false, 0, false, false))
-                        temp2 &= ~least_bit2
-                        end
-                    end
                 temp &= ~least_bit
             end
         end
 
-        #BISHOP MOVES
-        if(w_bishops != 0)
-            temp = w_bishops
-            for i=1:count_ones(w_bishops)
+        # mosse di alfiere
+        if(p.bishops & p.white_occ != 0)
+            temp = p.bishops & p.white_occ
+            for i=1:count_ones(p.bishops & p.white_occ)
                 least_bit = leastSignificantBit(temp)
                 index = trailing_zeros(least_bit) + 1
-                attacks = getBishopAttacks(BITBOARDS, index) & enemyOrEmpty
-                captures = attacks & black_occ
-                quiet_moves = attacks & ~black_occ
+                captures = getBishopAttacks(p, index) & p.black_occ
                 if(captures != 0)
                 temp2 = captures
                     for j=1:count_ones(captures)
                     least_bit2 = leastSignificantBit(temp2)
                     index2 = trailing_zeros(least_bit2) + 1
-                    push!(moves, (index, index2, 3, 0, false, 0, false, true))
+                    addMove(move_list, UInt8(index), UInt8(index2), 0x03, 0x00, false, 0x00, false, true)
                     temp2 &= ~least_bit2
                     end
                 end
-                if(quiet_moves != 0)
-                    temp2 = quiet_moves
-                        for k=1:count_ones(quiet_moves)
-                        least_bit2 = leastSignificantBit(temp2)
-                        index2 = trailing_zeros(least_bit2) + 1
-                        push!(moves, (index, index2, 3, 0, false, 0, false, false))
-                        temp2 &= ~least_bit2
-                        end
-                    end
                 temp &= ~least_bit
             end
         end
 
-        #KNIGHT MOVES
-        if(w_knights != 0)
-            temp = w_knights
-            for i=1:count_ones(w_knights)
+        # mosse di cavallo
+        if(p.knights & p.white_occ != 0)
+            temp = p.knights & p.white_occ
+            for i=1:count_ones(p.knights & p.white_occ)
                 least_bit = leastSignificantBit(temp)
                 index = trailing_zeros(least_bit) + 1
-                attacks = getKnightAttacks(index) & enemyOrEmpty
-                captures = attacks & black_occ
-                quiet_moves = attacks & ~black_occ
+                captures = getKnightAttacks(index) & p.black_occ
                 if(captures != 0)
                 temp2 = captures
                     for j=1:count_ones(captures)
                     least_bit2 = leastSignificantBit(temp2)
                     index2 = trailing_zeros(least_bit2) + 1
-                    push!(moves, (index, index2, 4, 0, false, 0, false, true))
+                    addMove(move_list, UInt8(index), UInt8(index2), 0x02, 0x00, false, 0x00, false, true)
                     temp2 &= ~least_bit2
                     end
                 end
-                if(quiet_moves != 0)
-                    temp2 = quiet_moves
-                        for k=1:count_ones(quiet_moves)
-                        least_bit2 = leastSignificantBit(temp2)
-                        index2 = trailing_zeros(least_bit2) + 1
-                        push!(moves, (index, index2, 4, 0, false, 0, false, false))
-                        temp2 &= ~least_bit2
-                        end
-                    end
                 temp &= ~least_bit
             end
         end
 
-        #ROOK MOVES
-        if(w_rooks != 0)
-            temp = w_rooks
-            for i=1:count_ones(w_rooks)
+        # mosse di torre
+        if(p.rooks & p.white_occ != 0)
+            temp = p.rooks & p.white_occ
+            for i=1:count_ones(p.rooks & p.white_occ)
                 least_bit = leastSignificantBit(temp)
                 index = trailing_zeros(least_bit) + 1
-                attacks = getRookAttacks(BITBOARDS, index) & enemyOrEmpty
-                captures = attacks & black_occ
-                quiet_moves = attacks & ~black_occ
+                captures = getRookAttacks(p, index) & p.black_occ
                 if(captures != 0)
                 temp2 = captures
                     for j=1:count_ones(captures)
                     least_bit2 = leastSignificantBit(temp2)
                     index2 = trailing_zeros(least_bit2) + 1
-                    push!(moves, (index, index2, 5, 0, false, 0, false, true))
+                    addMove(move_list, UInt8(index), UInt8(index2), 0x04, 0x00, false, 0x00, false, true)
                     temp2 &= ~least_bit2
                     end
                 end
-                if(quiet_moves != 0)
-                    temp2 = quiet_moves
-                        for k=1:count_ones(quiet_moves)
-                        least_bit2 = leastSignificantBit(temp2)
-                        index2 = trailing_zeros(least_bit2) + 1
-                        push!(moves, (index, index2, 5, 0, false, 0, false, false))
-                        temp2 &= ~least_bit2
-                        end
-                    end
                 temp &= ~least_bit
             end
         end
 
-        #PAWN MOVES
-        if(w_pawns != 0)
-            temp = w_pawns
-            for i=1:count_ones(w_pawns)
+        # mosse di pedone
+        if(p.pawns & p.white_occ != 0)
+            temp = p.pawns & p.white_occ
+            for i=1:count_ones(p.pawns & p.white_occ)
                 least_bit = leastSignificantBit(temp)
                 index = trailing_zeros(least_bit) + 1
                 
-                # Pawn attacks handling, promotion with capture is taken care
-                attacks = white_pawn_attacks(index) & black_occ
+                attacks = white_pawn_attacks(index) & p.black_occ
                 last_rank_attacks = attacks & RANKS[8]
                 normal_attacks = attacks & ~RANKS[8]
 
-                enpassant = white_pawn_attacks(index) & BITTYBOARDS[1]
+                enpassant = white_pawn_attacks(index) & p.enpassant
 
                     if(enpassant != 0)
                         index2 = trailing_zeros(enpassant) + 1
-                        push!(moves, (index, index2, 6, 0, true, 0, false, true))
+                        addMove(move_list, UInt8(index), UInt8(index2), 0x01, 0x00, true, 0x00, false, true)
                     end
 
                     if(last_rank_attacks != 0)
@@ -526,10 +148,10 @@ function goFullPseudo(BITBOARDS, GAMESTATE, BITTYBOARDS)
                             least_bit2 = leastSignificantBit(temp2)
                             index2 = trailing_zeros(least_bit2) + 1
                             temp2 &= ~least_bit2
-                            push!(moves, (index, index2, 6, 2, false, 0, false, true))
-                            push!(moves, (index, index2, 6, 3, false, 0, false, true))
-                            push!(moves, (index, index2, 6, 4, false, 0, false, true))
-                            push!(moves, (index, index2, 6, 5, false, 0, false, true))
+                            addMove(move_list, UInt8(index), UInt8(index2), 0x01, 0x02, false, 0x00, false, true)
+                            addMove(move_list, UInt8(index), UInt8(index2), 0x01, 0x03, false, 0x00, false, true)
+                            addMove(move_list, UInt8(index), UInt8(index2), 0x01, 0x04, false, 0x00, false, true) 
+                            addMove(move_list, UInt8(index), UInt8(index2), 0x01, 0x05, false, 0x00, false, true)
                         end
                     end
                     if(normal_attacks != 0)
@@ -538,240 +160,123 @@ function goFullPseudo(BITBOARDS, GAMESTATE, BITTYBOARDS)
                             least_bit2 = leastSignificantBit(temp2)
                             index2 = trailing_zeros(least_bit2) + 1
                             temp2 &= ~least_bit2
-                            push!(moves, (index, index2, 6, 0, false, 0, false, true))
-                        end
-                    end
-
-                    #Pawn quiet moves
-                    empty = ~(white_occ | black_occ)
-                    pushes = (least_bit << 8 & empty) | (least_bit << 16 & empty & RANKS[4] & (empty << 8))
-                    last_rank_push = RANKS[8] & pushes #only 1 bit or less
-                    normal_push = ~RANKS[8] & pushes #only 2 bits or less
-                    if(last_rank_push != 0)
-                        index2 = trailing_zeros(last_rank_push) + 1
-                        push!(moves, (index, index2, 6, 2, false, 0, false, false))
-                        push!(moves, (index, index2, 6, 3, false, 0, false, false))
-                        push!(moves, (index, index2, 6, 4, false, 0, false, false))
-                        push!(moves, (index, index2, 6, 5, false, 0, false, false))
-                    end
-                    if(normal_push != 0)
-                        temp2 = normal_push
-                        for j=1:count_ones(normal_push)
-                            least_bit2 = leastSignificantBit(temp2)
-                            index2 = trailing_zeros(least_bit2) + 1
-                            if(least_bit2 & RANKS[4] != 0) #Potential double push or push to rank 4
-                                if(least_bit & RANKS[2] != 0) #Double Push
-                                    push!(moves, (index, index2, 6, 0, false, 0, true, false))
-                                else #single push to rank 4
-                                    push!(moves, (index, index2, 6, 0, false, 0, false, false))
-                                end
-                            else #single push, not to rank 4, not to rank 8
-                                push!(moves, (index, index2, 6, 0, false, 0, false, false))
-                            end
-                            temp2 &= ~least_bit2
+                            addMove(move_list, UInt8(index), UInt8(index2), 0x01, 0x00, false, 0x00, false, true)
                         end
                     end
                 temp &= ~least_bit
             end
         end
-
-    else #BLACK turn
-
-        
-        enemyOrEmpty = ~black_occ
-
-        #KING MOVES
-        if(b_king != 0)
-            empty = ~(black_occ | white_occ)
-            index = trailing_zeros(b_king) + 1
-            attacks = getKingAttacks(index) & enemyOrEmpty
-            captures = attacks & white_occ
-            quiet_moves = attacks & ~white_occ
+    else # turno del nero
+        # mosse del re
+        if(p.kings & p.black_occ != 0)
+            index = trailing_zeros(p.kings & p.black_occ) + 1
+            captures = getKingAttacks(index) & p.white_occ
             if(captures != 0)
                 temp2 = captures
                     for i=1:count_ones(captures)
                     least_bit2 = leastSignificantBit(temp2)
                     index2 = trailing_zeros(least_bit2) + 1
-                    push!(moves, (index, index2, 7, 0, false, 0, false, true))
+                    addMove(move_list, UInt8(index), UInt8(index2), 0x06, 0x00, false, 0x00, false, true)
                     temp2 &= ~least_bit2
                     end
             end
-            if(quiet_moves != 0)
-                temp2 = quiet_moves
-                        for j=1:count_ones(quiet_moves)
-                        least_bit2 = leastSignificantBit(temp2)
-                        index2 = trailing_zeros(least_bit2) + 1
-                        push!(moves, (index, index2, 7, 0, false, 0, false, false))
-                        temp2 &= ~least_bit2
-                        end
-            end
-            if(GAMESTATE[7] == true) #check if pseudo-legal castling kingside is possible. (given or updated information about history moves of king and rooks)
-                f8 = RANKS[8] & FILES[6]
-                g8 = RANKS[8] & FILES[7]
-                index_g8 = trailing_zeros(g8) + 1
-                if(f8 & empty != 0)
-                    if(g8 & empty != 0)
-                        #Every square for castling kingside is empty
-                        push!(moves, (index, index_g8, 7, 0, false, 1, false, false))
-                    end
-                end
-            end
-            if(GAMESTATE[8] == true)
-                b8 = RANKS[8] & FILES[2]
-                c8 = RANKS[8] & FILES[3]
-                d8 = RANKS[8] & FILES[4]
-                index_c8 = trailing_zeros(c8) + 1
-                if(d8 & empty != 0)
-                    if(c8 & empty != 0)
-                        if(b8 & empty != 0)
-                        #Every square for castling queenside is empty
-                        push!(moves, (index, index_c8, 7, 0, false, 2, false, false))
-                        end
-                    end
-                end
-            end
         end
-        #QUEEN MOVES
-        if(b_queens != 0)
-            temp = b_queens
-            for i=1:count_ones(b_queens)
+        # mosse di regina
+        if(p.queens & p.black_occ != 0)
+            temp = p.queens & p.black_occ
+            for i=1:count_ones(p.queens & p.black_occ)
                 least_bit = leastSignificantBit(temp)
                 index = trailing_zeros(least_bit) + 1
-                attacks = getQueenAttacks(BITBOARDS, index) & enemyOrEmpty
-                captures = attacks & white_occ
-                quiet_moves = attacks & ~white_occ
+                captures = getQueenAttacks(p, index) & p.white_occ
                 if(captures != 0)
                 temp2 = captures
                     for j=1:count_ones(captures)
                     least_bit2 = leastSignificantBit(temp2)
                     index2 = trailing_zeros(least_bit2) + 1
-                    push!(moves, (index, index2, 8, 0, false, 0, false, true))
+                    addMove(move_list, UInt8(index), UInt8(index2), 0x05, 0x00, false, 0x00, false, true)
                     temp2 &= ~least_bit2
                     end
                 end
-                if(quiet_moves != 0)
-                    temp2 = quiet_moves
-                        for k=1:count_ones(quiet_moves)
-                        least_bit2 = leastSignificantBit(temp2)
-                        index2 = trailing_zeros(least_bit2) + 1
-                        push!(moves, (index, index2, 8, 0, false, 0, false, false))
-                        temp2 &= ~least_bit2
-                        end
-                    end
                 temp &= ~least_bit
             end
         end
 
-        #BISHOP MOVES
-        if(b_bishops != 0)
-            temp = b_bishops
-            for i=1:count_ones(b_bishops)
+        # mosse di alfiere
+        if(p.bishops & p.black_occ != 0)
+            temp = p.bishops & p.black_occ
+            for i=1:count_ones(p.bishops & p.black_occ)
                 least_bit = leastSignificantBit(temp)
                 index = trailing_zeros(least_bit) + 1
-                attacks = getBishopAttacks(BITBOARDS, index) & enemyOrEmpty
-                captures = attacks & white_occ
-                quiet_moves = attacks & ~white_occ
+                captures = getBishopAttacks(p, index) & p.white_occ
                 if(captures != 0)
                 temp2 = captures
                     for j=1:count_ones(captures)
                     least_bit2 = leastSignificantBit(temp2)
                     index2 = trailing_zeros(least_bit2) + 1
-                    push!(moves, (index, index2, 9, 0, false, 0, false, true))
+                    addMove(move_list, UInt8(index), UInt8(index2), 0x03, 0x00, false, 0x00, false, true)
                     temp2 &= ~least_bit2
                     end
                 end
-                if(quiet_moves != 0)
-                    temp2 = quiet_moves
-                        for k=1:count_ones(quiet_moves)
-                        least_bit2 = leastSignificantBit(temp2)
-                        index2 = trailing_zeros(least_bit2) + 1
-                        push!(moves, (index, index2, 9, 0, false, 0, false, false))
-                        temp2 &= ~least_bit2
-                        end
-                    end
                 temp &= ~least_bit
             end
         end
 
-        #KNIGHT MOVES
-        if(b_knights != 0)
-            temp = b_knights
-            for i=1:count_ones(b_knights)
+        # mosse di cavallo
+        if(p.knights & p.black_occ != 0)
+            temp = p.knights & p.black_occ
+            for i=1:count_ones(p.knights & p.black_occ)
                 least_bit = leastSignificantBit(temp)
                 index = trailing_zeros(least_bit) + 1
-                attacks = getKnightAttacks(index) & enemyOrEmpty
-                captures = attacks & white_occ
-                quiet_moves = attacks & ~white_occ
+                captures = getKnightAttacks(index) & p.white_occ
                 if(captures != 0)
                 temp2 = captures
                     for j=1:count_ones(captures)
                     least_bit2 = leastSignificantBit(temp2)
                     index2 = trailing_zeros(least_bit2) + 1
-                    push!(moves, (index, index2, 10, 0, false, 0, false, true))
+                    addMove(move_list, UInt8(index), UInt8(index2), 0x02, 0x00, false, 0x00, false, true)
                     temp2 &= ~least_bit2
                     end
                 end
-                if(quiet_moves != 0)
-                    temp2 = quiet_moves
-                        for k=1:count_ones(quiet_moves)
-                        least_bit2 = leastSignificantBit(temp2)
-                        index2 = trailing_zeros(least_bit2) + 1
-                        push!(moves, (index, index2, 10, 0, false, 0, false, false))
-                        temp2 &= ~least_bit2
-                        end
-                    end
                 temp &= ~least_bit
             end
         end
 
-        #ROOK MOVES
-        if(b_rooks != 0)
-            temp = b_rooks
-            for i=1:count_ones(b_rooks)
+        # mosse di torre
+        if(p.rooks & p.black_occ != 0)
+            temp = p.rooks & p.black_occ
+            for i=1:count_ones(p.rooks & p.black_occ)
                 least_bit = leastSignificantBit(temp)
                 index = trailing_zeros(least_bit) + 1
-                attacks = getRookAttacks(BITBOARDS, index) & enemyOrEmpty
-                captures = attacks & white_occ
-                quiet_moves = attacks & ~white_occ
+                captures = getRookAttacks(p, index) & p.white_occ
                 if(captures != 0)
                 temp2 = captures
                     for j=1:count_ones(captures)
                     least_bit2 = leastSignificantBit(temp2)
                     index2 = trailing_zeros(least_bit2) + 1
-                    push!(moves, (index, index2, 11, 0, false, 0, false, true))
+                    addMove(move_list, UInt8(index), UInt8(index2), 0x04, 0x00, false, 0x00, false, true)
                     temp2 &= ~least_bit2
                     end
                 end
-                if(quiet_moves != 0)
-                    temp2 = quiet_moves
-                        for k=1:count_ones(quiet_moves)
-                        least_bit2 = leastSignificantBit(temp2)
-                        index2 = trailing_zeros(least_bit2) + 1
-                        push!(moves, (index, index2, 11, 0, false, 0, false, false))
-                        temp2 &= ~least_bit2
-                        end
-                    end
                 temp &= ~least_bit
             end
         end
 
-        #PAWN MOVES
-        if(b_pawns != 0)
-            temp = b_pawns
-            for i=1:count_ones(b_pawns)
+        # mosse di pedone
+        if(p.pawns & p.black_occ != 0)
+            temp = p.pawns & p.black_occ
+            for i=1:count_ones(p.pawns & p.black_occ)
                 least_bit = leastSignificantBit(temp)
                 index = trailing_zeros(least_bit) + 1
                 
-                # Pawn attacks handling, promotion with capture is taken care
-                attacks = black_pawn_attacks(index) & white_occ
+                attacks = black_pawn_attacks(index) & p.white_occ
                 last_rank_attacks = attacks & RANKS[1]
                 normal_attacks = attacks & ~RANKS[1]
 
-                enpassant = black_pawn_attacks(index) & BITTYBOARDS[1]
+                enpassant = black_pawn_attacks(index) & p.enpassant
 
                     if(enpassant != 0)
                         index2 = trailing_zeros(enpassant) + 1
-                        push!(moves, (index, index2, 12, 0, true, 0, false, true))
+                        addMove(move_list, UInt8(index), UInt8(index2), 0x01, 0x00, true, 0x00, false, true)
                     end
 
                     if(last_rank_attacks != 0)
@@ -780,10 +285,10 @@ function goFullPseudo(BITBOARDS, GAMESTATE, BITTYBOARDS)
                             least_bit2 = leastSignificantBit(temp2)
                             index2 = trailing_zeros(least_bit2) + 1
                             temp2 &= ~least_bit2
-                            push!(moves, (index, index2, 12, 8, false, 0, false, true))
-                            push!(moves, (index, index2, 12, 9, false, 0, false, true))
-                            push!(moves, (index, index2, 12, 10, false, 0, false, true))
-                            push!(moves, (index, index2, 12, 11, false, 0, false, true))
+                            addMove(move_list, UInt8(index), UInt8(index2), 0x01, 0x02, false, 0x00, false, true)
+                            addMove(move_list, UInt8(index), UInt8(index2), 0x01, 0x03, false, 0x00, false, true)
+                            addMove(move_list, UInt8(index), UInt8(index2), 0x01, 0x04, false, 0x00, false, true)
+                            addMove(move_list, UInt8(index), UInt8(index2), 0x01, 0x05, false, 0x00, false, true)
                         end
                     end
                     if(normal_attacks != 0)
@@ -792,1432 +297,281 @@ function goFullPseudo(BITBOARDS, GAMESTATE, BITTYBOARDS)
                             least_bit2 = leastSignificantBit(temp2)
                             index2 = trailing_zeros(least_bit2) + 1
                             temp2 &= ~least_bit2
-                            push!(moves, (index, index2, 12, 0, false, 0, false, true))
-                        end
-                    end
-
-                    #Pawn quiet moves
-                    empty = ~(white_occ | black_occ)
-                    pushes = (least_bit >> 8 & empty) | (least_bit >> 16 & empty & RANKS[5] & (empty >> 8))
-                    last_rank_push = RANKS[1] & pushes #only 1 bit or less
-                    normal_push = ~RANKS[1] & pushes #only 2 bits or less
-                    if(last_rank_push != 0)
-                        index2 = trailing_zeros(last_rank_push) + 1
-                        push!(moves, (index, index2, 12, 8, false, 0, false, false))
-                        push!(moves, (index, index2, 12, 9, false, 0, false, false))
-                        push!(moves, (index, index2, 12, 10, false, 0, false, false))
-                        push!(moves, (index, index2, 12, 11, false, 0, false, false))
-                    end
-                    if(normal_push != 0)
-                        temp2 = normal_push
-                        for j=1:count_ones(normal_push)
-                            least_bit2 = leastSignificantBit(temp2)
-                            index2 = trailing_zeros(least_bit2) + 1
-                            if(least_bit2 & RANKS[5] != 0) #Potential double push or push to rank 5
-                                if(least_bit & RANKS[7] != 0) #Double Push
-                                    push!(moves, (index, index2, 12, 0, false, 0, true, false))
-                                else #single push to rank 5
-                                    push!(moves, (index, index2, 12, 0, false, 0, false, false))
-                                end
-                            else #single push, not to rank 5, not to rank 1
-                                push!(moves, (index, index2, 12, 0, false, 0, false, false))
-                            end
-                            temp2 &= ~least_bit2
+                            addMove(move_list, UInt8(index), UInt8(index2), 0x01, 0x00, false, 0x00, false, true)
                         end
                     end
                 temp &= ~least_bit
             end
         end
-
-
     end
-    return moves
 end
 
-
-# Makes a move on given bitboards, gamestate and move encoded and returns updated bitboards
-function makeMove(BITBOARDS, GAMESTATE, BITTYBOARDS, MOVE)
-        a1 = RANKS[1] & FILES[1]
-        h1 = RANKS[1] & FILES[8] #for castling updates
-        a8 = RANKS[8] & FILES[1]
-        h8 = RANKS[8] & FILES[8]
-
-        source = SQUARES_TO_BITBOARDS[MOVE[1]]
-        target = SQUARES_TO_BITBOARDS[MOVE[2]]
-
-    if (GAMESTATE[2] == WHITE)
-        if(MOVE[3] == 1) # white king
-                BITBOARDS[1] = target # king goes to target square, works also for castling
-                GAMESTATE[5] = false #We moved the king so castling rights are lost
-                GAMESTATE[6] = false
-            if(MOVE[8] == true) # capture
-                for i=7:12 # remove piece from black bitboards
-                BITBOARDS[i] = BITBOARDS[i] & ~target
-                end
-            end
-            if(MOVE[6] == 1)
-                BITBOARDS[5] = (BITBOARDS[5] & (~h1)) | (RANKS[1] & FILES[6]) #Takes rook from h1 to f1
-            end
-            if(MOVE[6] == 2)
-                BITBOARDS[5] = (BITBOARDS[5] & (~a1)) | (RANKS[1] & FILES[4]) #Takes rook from a1 to d1
-            end
-        end
-
-        if(MOVE[3] == 2) # white queen
-            BITBOARDS[2] = (BITBOARDS[2] | target) & ~source # queen goes from sourcesquare to targetsquare
-        if(MOVE[8] == true) # capture
-            for i=7:12 # remove piece from black bitboards
-            BITBOARDS[i] = BITBOARDS[i] & ~target
-            end
-        end
-        end
-
-        if(MOVE[3] == 3) # white bishop
-            BITBOARDS[3] = (BITBOARDS[3] | target) & ~source # bishop goes from sourcesquare to targetsquare
-        if(MOVE[8] == true) # capture
-            for i=7:12 # remove piece from black bitboards
-            BITBOARDS[i] = BITBOARDS[i] & ~target
-            end
-        end
-        end
-
-        if(MOVE[3] == 4) # white knight
-            BITBOARDS[4] = (BITBOARDS[4] | target) & ~source # knight goes from sourcesquare to targetsquare
-        if(MOVE[8] == true) # capture
-            for i=7:12 # remove piece from black bitboards
-            BITBOARDS[i] = BITBOARDS[i] & ~target
-            end
-        end
-        end
-
-            if(MOVE[3] == 5) # white rook
-
-                #castling update for white
-                if(source & a1 != 0) #Queenside
-                   GAMESTATE[6] = false
-                end
-                if(source & h1 != 0) #Kingside
-                   GAMESTATE[5] = false
-                end
-
-            BITBOARDS[5] = (BITBOARDS[5] | target) & ~source # rook goes from sourcesquare to targetsquare
-                if(MOVE[8] == true) # capture
-                    for i=7:12 # remove piece from black bitboards
-                    BITBOARDS[i] = BITBOARDS[i] & ~target
-                    end
-                end
-            end
-
-
-            if(MOVE[3] == 6) # white pawn
-
-                BITBOARDS[6] = BITBOARDS[6] & ~source # pawn disappears from source square
-                if(MOVE[8] == true) # capture
-                    if(MOVE[5] == true)
-                        enpassant = BITTYBOARDS[1]
-                        for i=7:12 # remove piece from black bitboards ENPASSANT case
-                        BITBOARDS[i] = BITBOARDS[i] & ~(enpassant >> 8)
-                        end
-                    else
-                        for i=7:12 # remove piece from black bitboards normal case
-                            BITBOARDS[i] = BITBOARDS[i] & ~target
-                            end
-                    end
-                end
-                if(MOVE[4] != 0)#PROMOTION, updates the relative bitboard with new piece
-                    BITBOARDS[MOVE[4]] |= target
-                else
-                    BITBOARDS[6] = BITBOARDS[6] | target
-                end
-
-            end
-
-            if(MOVE[7] == true)#double push case: we update enpassant bittyboard with the square behind the pawn
-                BITTYBOARDS[1] = source << 8
-            else# if not double push then set enpassant bitboard to zero
-                BITTYBOARDS[1] = 0b0000000000000000000000000000000000000000000000000000000000000000
-            end
-
-
-            #Updates castling for black in case of h8 a8 invasion
-            if(target & a8 != 0)#Queenside
-                GAMESTATE[8] = false
-            end
-            if(target & h8 != 0)#Kingside
-                GAMESTATE[7] = false
-            end
-
-            GAMESTATE[2] = BLACK
-
-    else #BLACK TURN
-
-        if(MOVE[3] == 7) # black king
-            BITBOARDS[7] = target # king goes to target square, works also for castling
-            GAMESTATE[7] = false #We moved the king so castling rights are lost
-            GAMESTATE[8] = false
-        if(MOVE[8] == true) # capture
-            for i=1:6 # remove piece from black bitboards
-            BITBOARDS[i] = BITBOARDS[i] & ~target
-            end
-        end
-        if(MOVE[6] == 1)
-            BITBOARDS[11] = (BITBOARDS[11] & (~h8)) | (RANKS[8] & FILES[6]) #Takes rook from h8 to f8
-        end
-        if(MOVE[6] == 2)
-            BITBOARDS[11] = (BITBOARDS[11] & (~a8)) | (RANKS[8] & FILES[4]) #Takes rook from a8 to d8
-        end
+# Funzioni ausiliarie per accesso statico a bitboard dei pezzi
+@inline function get_piece_board(p::Position, i::Int64)
+    if i == 1
+        return p.pawns
+    elseif i == 2
+        return p.knights
+    elseif i == 3
+        return p.bishops
+    elseif i == 4
+        return p.rooks
+    elseif i == 5
+        return p.queens
+    else
+        return p.kings
     end
+end
 
-    if(MOVE[3] == 8) # black queen
-        BITBOARDS[8] = (BITBOARDS[8] | target) & ~source # queen goes from sourcesquare to targetsquare
-    if(MOVE[8] == true) # capture
-        for i=1:6 # remove piece from black bitboards
-        BITBOARDS[i] = BITBOARDS[i] & ~target
-        end
+@inline function set_piece_board!(p::Position, i::Int64, value::UInt64)
+    if i == 1
+        p.pawns = value
+    elseif i == 2
+        p.knights = value
+    elseif i == 3
+        p.bishops = value
+    elseif i == 4
+        p.rooks = value
+    elseif i == 5
+        p.queens = value
+    else
+        p.kings = value
     end
-    end
+end
 
-    if(MOVE[3] == 9) # black bishop
-        BITBOARDS[9] = (BITBOARDS[9] | target) & ~source # bishop goes from sourcesquare to targetsquare
-    if(MOVE[8] == true) # capture
-        for i=1:6 # remove piece from black bitboards
-        BITBOARDS[i] = BITBOARDS[i] & ~target
-        end
-    end
-    end
-
-    if(MOVE[3] == 10) # black knight
-        BITBOARDS[10] = (BITBOARDS[10] | target) & ~source # knight goes from sourcesquare to targetsquare
-    if(MOVE[8] == true) # capture
-        for i=1:6 # remove piece from black bitboards
-        BITBOARDS[i] = BITBOARDS[i] & ~target
-        end
-    end
-    end
-
-        if(MOVE[3] == 11) # black rook
-
-            #castling update for black
-            if(source & a8 != 0) #Queenside
-               GAMESTATE[8] = false
-            end
-            if(source & h8 != 0) #Kingside
-               GAMESTATE[7] = false
-            end
-
-        BITBOARDS[11] = (BITBOARDS[11] | target) & ~source # rook goes from sourcesquare to targetsquare
-            if(MOVE[8] == true) # capture
-                for i=1:6 # remove piece from black bitboards
-                BITBOARDS[i] = BITBOARDS[i] & ~target
-                end
-            end
-        end
-
-
-        if(MOVE[3] == 12) # black pawn
-
-            BITBOARDS[12] = BITBOARDS[12] & ~source # pawn disappears from source square
-            if(MOVE[8] == true) # capture
-                if(MOVE[5] == true)
-                    enpassant = BITTYBOARDS[1]
-                    for i=1:6 # remove piece from black bitboards ENPASSANT case
-                    BITBOARDS[i] = BITBOARDS[i] & ~(enpassant << 8)
-                    end
-                else
-                    for i=1:6 # remove piece from black bitboards normal case
-                        BITBOARDS[i] = BITBOARDS[i] & ~target
-                        end
-                end
-            end
-            if(MOVE[4] != 0)#PROMOTION, updates the relative bitboard with new piece
-                BITBOARDS[MOVE[4]] |= target
+# esegue una mossa in una data posizione
+function makeMove!(p::Position, move::Move)
+    source_mask = UInt64(1) << (move.source - 1)
+    target_mask = UInt64(1) << (move.target - 1)
+    
+    if move.capture # gestione catture
+        if move.enpassant #enpassant
+            if(p.turn == true)
+            p.pawns &= ~(p.enpassant >> 8)
+            p.black_occ &= ~(p.enpassant >> 8)
             else
-                BITBOARDS[12] = BITBOARDS[12] | target
+            p.pawns &= ~(p.enpassant << 8)
+            p.white_occ &= ~(p.enpassant << 8)
             end
-
-        end
-
-        if(MOVE[7] == true)#double push case: we update enpassant bittyboard with the square behind the pawn
-            BITTYBOARDS[1] = target << 8
-        else# if not double push then set enpassant bitboard to zero
-            BITTYBOARDS[1] = 0b0000000000000000000000000000000000000000000000000000000000000000
-        end
-
-
-        #Updates castling for white in case of h8 a8 invasion
-        if(target & a1 != 0)#Queenside
-            GAMESTATE[6] = false
-        end
-        if(target & h1 != 0)#Kingside
-            GAMESTATE[5] = false
-        end
-
-        GAMESTATE[2] = WHITE
-
-    end
-    return [BITBOARDS, GAMESTATE, BITTYBOARDS]
-end
-
-
-function doMove(MOVE)
-    makeMove(getBitBoards(), getGameState(), getBittyBoards(), MOVE)
-    printBoard()
-end
-
-#First legal moves generator.
-function goFullLegal(BITBOARDS, GAMESTATE, BITTYBOARDS)
-    legal_moves = []
-    pseudo_moves = goFullPseudo(BITBOARDS, GAMESTATE, BITTYBOARDS)
-    for i=1:length(pseudo_moves)
-        var = makeMove(copy(BITBOARDS), copy(GAMESTATE), copy(BITTYBOARDS), pseudo_moves[i])
-        if(!isKingInCheck(var[1] , GAMESTATE[2]))
-            if(pseudo_moves[i][6] != 0) #Castles
-                if(pseudo_moves[i][3] == 1) #White king
-                    if(pseudo_moves[i][6] == 1) #kingside white -> f1
-                        if(!isSquareAttacked(BITBOARDS, RANKS[1] & FILES[6], WHITE))
-                            if(!isSquareAttacked(BITBOARDS, BITBOARDS[1], WHITE))
-                            push!(legal_moves, pseudo_moves[i])
-                            end
-                        end
-                    else #queenside white -> d1
-                        if(!isSquareAttacked(BITBOARDS, RANKS[1] & FILES[4], WHITE))
-                            if(!isSquareAttacked(BITBOARDS, BITBOARDS[1], WHITE))
-                            push!(legal_moves, pseudo_moves[i])
-                            end
-                        end
-                    end
-                else #Black King
-                    if(pseudo_moves[i][6] == 1) #kingside black -> f8
-                        if(!isSquareAttacked(BITBOARDS, RANKS[8] & FILES[6], BLACK))
-                            if(!isSquareAttacked(BITBOARDS, BITBOARDS[7], BLACK))
-                            push!(legal_moves, pseudo_moves[i])
-                            end
-                        end
-                    else #queenside white -> d8
-                        if(!isSquareAttacked(BITBOARDS, RANKS[8] & FILES[4], BLACK))
-                            if(!isSquareAttacked(BITBOARDS, BITBOARDS[7], BLACK))
-                            push!(legal_moves, pseudo_moves[i])
-                            end
-                        end
-                    end
+        else # catture normali
+            for i in 1:6
+                board = get_piece_board(p, i)
+                if (board & target_mask) != 0
+                    set_piece_board!(p, i, board & ~target_mask)
+                    break
                 end
+            end
+            # aggiornamento occupazione avversaria
+            if p.turn
+                p.black_occ &= ~target_mask
             else
-            push!(legal_moves, pseudo_moves[i])
+                p.white_occ &= ~target_mask
             end
         end
     end
-    return legal_moves
-end
-
-"""
-    perft(bitboards, gamestate, bittyboards, depth)
-
-Conta le posizioni raggiungibili fino a `depth` mosse legali.
-
-
-RISULTATI OTTENUTI:
-https://www.chessprogramming.org/Perft_Results
-Per ora depth limitate perchè il generatore è lento, ma migliorabile...
-Per ora MAX: 119 milioni di posizioni valutate
-Starting Position: ok fino a depth 6
-Kiwipete Position: ok fino a depth 5
-Position 3: ok fino a depth 6
-Position 4: ok fino a depth 5
-Position 5: ok fino a depth 4
-Position 6: 
-"""
-function perft(BITBOARDS, GAMESTATE, BITTYBOARDS, depth)
-    depth == 0 && return 1
-    nodes = 0
-    legal_moves = goFullLegal(BITBOARDS, GAMESTATE, BITTYBOARDS)
-
-    if(isempty(legal_moves))
-        return 0
+    
+    # spostamento del pezzo che muove
+    piece_board = get_piece_board(p, Int64(move.moving_piece))
+    set_piece_board!(p, Int64(move.moving_piece), (piece_board & ~source_mask) | target_mask)
+    
+    # aggiorna l'occupazione del colore attivo
+    if p.turn
+        p.white_occ = (p.white_occ & ~source_mask) | target_mask
+    else
+        p.black_occ = (p.black_occ & ~source_mask) | target_mask
     end
 
-    for move in legal_moves
-        var = makeMove(copy(BITBOARDS), copy(GAMESTATE), copy(BITTYBOARDS), move)
-        nodes += perft(var[1], var[2], var[3], depth - 1)
+    # resetta la casa en passant precedente
+    p.enpassant = 0
+    
+    # gestione promozione
+    if move.promotion != 0
+        p.pawns &= ~target_mask # rimuove il pedone che abbiamo spostato
+        promoted_piece_board = get_piece_board(p, Int64(move.promotion))
+        set_piece_board!(p, Int64(move.promotion), promoted_piece_board | target_mask) # aggiunge il pezzo promosso
+    
+    elseif move.castling != 0 # gestione arrocco
+        # il re è già stato mosso, muoviamo la torre corrispondente.
+        local rook_source_mask, rook_target_mask
+        if move.castling == 1 # bianco, corto
+            rook_source_mask = 0x0000000000000001 # h1
+            rook_target_mask = 0x0000000000000004 # f1
+        elseif move.castling == 2 # bianco, lungo
+            rook_source_mask = 0x0000000000000080 # a1
+            rook_target_mask = 0x0000000000000010 # d1
+        elseif move.castling == 3 # nero, corto
+            rook_source_mask = 0x0100000000000000 # h8
+            rook_target_mask = 0x0400000000000000 # f8
+        else # nero, lungo
+            rook_source_mask = 0x8000000000000000 # a8
+            rook_target_mask = 0x1000000000000000 # d8
+        end
+        # muove la torre e aggiorna l'occupazione del colore
+        p.rooks = (p.rooks & ~rook_source_mask) | rook_target_mask
+        if p.turn
+            p.white_occ = (p.white_occ & ~rook_source_mask) | rook_target_mask
+        else
+            p.black_occ = (p.black_occ & ~rook_source_mask) | rook_target_mask
+        end
+
+    elseif move.double_push
+        # imposta la casa per una possibile cattura en passant
+        p.enpassant = (UInt64(1) << Int64((move.source + move.target) / 2 - 1))
     end
-    return nodes
+    
+    # aggiornamento diritti arrocco
+    if p.w_kingside && (move.source == 1 || move.source == 4) p.w_kingside = false end
+    if p.w_queenside && (move.source == 8 || move.source == 4) p.w_queenside = false end
+    if p.b_kingside && (move.source == 57 || move.source == 60) p.b_kingside = false end
+    if p.b_queenside && (move.source == 64 || move.source == 60) p.b_queenside = false end
+
+    if move.target == 1 p.w_kingside = false end
+    if move.target == 8 p.w_queenside = false end
+    if move.target == 57 p.b_kingside = false end
+    if move.target == 64 p.b_queenside = false end
+    
+    # aggiornamento del turno
+    p.turn = !p.turn
 end
 
-"""
-nuovi perft
-"""
-##################################################################
-
-
-function divide_perft(BITBOARDS, GAMESTATE, BITTYBOARDS, depth)
-    legal_moves = goFullLegal(BITBOARDS, GAMESTATE, BITTYBOARDS)
-    total_nodes = 0
-
-    for move in legal_moves
-        var = makeMove(copy(BITBOARDS), copy(GAMESTATE), copy(BITTYBOARDS), move)
-        nodes = perft(var[1], var[2], var[3], depth - 1)
-        println(BITSQUARES_TO_NOTATION[SQUARES_TO_BITBOARDS[move[1]]], "-", BITSQUARES_TO_NOTATION[SQUARES_TO_BITBOARDS[move[2]]], "$move: $nodes")
-        total_nodes += nodes
-    end
-
-    println("Total nodes: $total_nodes")
+# funzione helper che aggiunge una mossa a una movelist
+function addMove(move_list::MoveList, source::UInt8, target::UInt8, moving_piece::UInt8, promotion::UInt8, enpassant::Bool, castling::UInt8, double_push::Bool, capture::Bool)
+    move_list.amount += 1
+    move_list.moves[move_list.amount].source = source
+    move_list.moves[move_list.amount].target = target
+    move_list.moves[move_list.amount].moving_piece = moving_piece
+    move_list.moves[move_list.amount].promotion = promotion
+    move_list.moves[move_list.amount].enpassant = enpassant
+    move_list.moves[move_list.amount].castling = castling
+    move_list.moves[move_list.amount].double_push = double_push
+    move_list.moves[move_list.amount].capture = capture
 end
 
+# funzione helper che aggiunge una mossa a una movelist
+function addMove(move_list::MoveList, move::Move)
+    move_list.amount += 1
+    move_list.moves[move_list.amount].source = move.source
+    move_list.moves[move_list.amount].target = move.target
+    move_list.moves[move_list.amount].moving_piece = move.moving_piece
+    move_list.moves[move_list.amount].promotion = move.promotion
+    move_list.moves[move_list.amount].enpassant = move.enpassant
+    move_list.moves[move_list.amount].castling = move.castling
+    move_list.moves[move_list.amount].double_push = move.double_push
+    move_list.moves[move_list.amount].capture = move.capture
+end
 
-##################################################################
-
-
-
-
-function isSquareAttacked(BITBOARDS, BITSQUARE, COLOR)
-    if(COLOR == WHITE)
-        index = trailing_zeros(BITSQUARE) + 1
-        if(getKnightAttacks(index) & BITBOARDS[10] != 0)
+# funzione che controlla se una casa è attaccata
+function is_attacked(p::Position, square::Int64, by_white::Bool)::Bool
+    if by_white
+        if(getKnightAttacks(square) & p.knights & p.white_occ != 0)
             return true
         end
-        if(getBishopAttacks(BITBOARDS, index) & (BITBOARDS[8] | BITBOARDS[9]) != 0)
+        if(getBishopAttacks(p, square) & (p.bishops | p.queens) & p.white_occ != 0)
             return true
         end
-        if(getRookAttacks(BITBOARDS, index) & (BITBOARDS[8] | BITBOARDS[11]) != 0)
+        if(getRookAttacks(p, square) & (p.rooks | p.queens) & p.white_occ != 0)
             return true
         end
-        if(white_pawn_attacks(index) & BITBOARDS[12] != 0)
+        if(black_pawn_attacks(square) & p.pawns & p.white_occ != 0)
             return true
         end
-        if(getKingAttacks(index) & BITBOARDS[7] != 0)
+        if(getKingAttacks(square) & p.kings & p.white_occ != 0)
             return true
         end
     else
-        index = trailing_zeros(BITSQUARE) + 1
-        if(getKnightAttacks(index) & BITBOARDS[4] != 0)
+        if(getKnightAttacks(square) & p.knights & p.black_occ != 0)
             return true
         end
-        if(getBishopAttacks(BITBOARDS, index) & (BITBOARDS[3] | BITBOARDS[2]) != 0)
+        if(getBishopAttacks(p, square) & (p.bishops | p.queens) & p.black_occ != 0)
             return true
         end
-        if(getRookAttacks(BITBOARDS, index) & (BITBOARDS[5] | BITBOARDS[2]) != 0)
+        if(getRookAttacks(p, square) & (p.rooks | p.queens) & p.black_occ != 0)
             return true
         end
-        if(black_pawn_attacks(index) & BITBOARDS[6] != 0)
+        if(white_pawn_attacks(square) & p.pawns & p.black_occ != 0)
             return true
         end
-        if(getKingAttacks(index) & BITBOARDS[1] != 0)
+        if(getKingAttacks(square) & p.kings & p.black_occ != 0)
             return true
         end
     end
     return false
 end
 
-#Run only if exists a king. Determines if the king is in check. No other flags
-function isKingInCheck(BITBOARDS, COLOR)
-        if(COLOR == WHITE)
-            index = trailing_zeros(BITBOARDS[1]) + 1
-            if(getKnightAttacks(index) & BITBOARDS[10] != 0)
-                return true
-            end
-            if(getBishopAttacks(BITBOARDS, index) & (BITBOARDS[8] | BITBOARDS[9]) != 0)
-                return true
-            end
-            if(getRookAttacks(BITBOARDS, index) & (BITBOARDS[8] | BITBOARDS[11]) != 0)
-                return true
-            end
-            if(white_pawn_attacks(index) & BITBOARDS[12] != 0)
-                return true
-            end
-            if(getKingAttacks(index) & BITBOARDS[7] != 0)
-                return true
-            end
-        else
-            index = trailing_zeros(BITBOARDS[7]) + 1
-            if(getKnightAttacks(index) & BITBOARDS[4] != 0)
-                return true
-            end
-            if(getBishopAttacks(BITBOARDS, index) & (BITBOARDS[3] | BITBOARDS[2]) != 0)
-                return true
-            end
-            if(getRookAttacks(BITBOARDS, index) & (BITBOARDS[5] | BITBOARDS[2]) != 0)
-                return true
-            end
-            if(black_pawn_attacks(index) & BITBOARDS[6] != 0)
-                return true
-            end
-            if(getKingAttacks(index) & BITBOARDS[1] != 0)
-                return true
-            end
-        end
-        return false
+# funzione che controlla se in una posizione il re di un certo colore è sotto attacco
+function is_king_attacked(p::Position, is_king_white::Bool)::Bool
+    king = is_king_white ? trailing_zeros((p.kings & p.white_occ)) + 1 : trailing_zeros((p.kings & p.black_occ)) + 1
+    return is_attacked(p, king, !is_king_white)
 end
 
-function checkersAmount(BITBOARDS, GAMESTATE)
-    count = 0
-        if(GAMESTATE[2] == WHITE)
-            index = trailing_zeros(BITBOARDS[1]) + 1
-            if(getKnightAttacks(index) & BITBOARDS[10] != 0)
-                count += count_ones(getKnightAttacks(index) & BITBOARDS[10])
-            end
-            if(getBishopAttacks(BITBOARDS, index) & (BITBOARDS[8] | BITBOARDS[9]) != 0)
-                count += count_ones(getBishopAttacks(BITBOARDS, index) & (BITBOARDS[8] | BITBOARDS[9]))
-            end
-            if(getRookAttacks(BITBOARDS, index) & (BITBOARDS[8] | BITBOARDS[11]) != 0)
-                count += count_ones(getRookAttacks(BITBOARDS, index) & (BITBOARDS[8] | BITBOARDS[11]))
-            end
-            if(white_pawn_attacks(index) & BITBOARDS[12] != 0)
-                count += count_ones(white_pawn_attacks(index) & BITBOARDS[12])
-            end
-        else
-            index = trailing_zeros(BITBOARDS[7]) + 1
-            if(getKnightAttacks(index) & BITBOARDS[4] != 0)
-                count += count_ones(getKnightAttacks(index) & BITBOARDS[4])
-            end
-            if(getBishopAttacks(BITBOARDS, index) & (BITBOARDS[3] | BITBOARDS[2]) != 0)
-                count += count_ones(getBishopAttacks(BITBOARDS, index) & (BITBOARDS[3] | BITBOARDS[2]))
-            end
-            if(getRookAttacks(BITBOARDS, index) & (BITBOARDS[5] | BITBOARDS[2]) != 0)
-                count += count_ones(getRookAttacks(BITBOARDS, index) & (BITBOARDS[5] | BITBOARDS[2]))
-            end
-            if(black_pawn_attacks(index) & BITBOARDS[6] != 0)
-                count += count_ones(black_pawn_attacks(index) & BITBOARDS[6])
-            end 
-        end
-        return count
+# funzione che controlla se c'è scacco nella posizione
+function in_check(p::Position)::Bool
+    square = trailing_zeros(p.kings & (p.turn ? p.white_occ : p.black_occ)) + 1
+    return is_attacked(p, square, !p.turn)
 end
 
-function getRookAttacks(BITBOARDS, id)::UInt64
-    occ = BITBOARDS[1] | BITBOARDS[2] | BITBOARDS[3] | BITBOARDS[4] | BITBOARDS[5] | BITBOARDS[6] | BITBOARDS[7] | BITBOARDS[8] | BITBOARDS[9] | BITBOARDS[10] | BITBOARDS[11] | BITBOARDS[12]
+# funzione helper che copia una posizione senza creare allocazioni
+function copy_position!(dest::Position, src::Position)
+    dest.pawns = src.pawns
+    dest.knights = src.knights
+    dest.bishops = src.bishops
+    dest.rooks = src.rooks
+    dest.queens = src.queens
+    dest.kings = src.kings
+    dest.black_occ = src.black_occ
+    dest.white_occ = src.white_occ
+    dest.enpassant = src.enpassant
+    dest.turn = src.turn
+    dest.w_kingside = src.w_kingside
+    dest.w_queenside = src.w_queenside
+    dest.b_kingside = src.b_kingside
+    dest.b_queenside = src.b_queenside
+end
+
+# calcolo degli attacchi di torre da una casa grazie ai magic numbers
+function getRookAttacks(p::Position, id::Int64)::UInt64
+    occ = p.white_occ | p.black_occ
     relevant_occupancy = occ & ECO_ROOK_MASKS_BY_ID[id]
-    magic_index = Int((relevant_occupancy * MAGIC_ROOK_BY_ID[id]) >> (64 - ROOK_RLBITS_BY_ID[id]))
-    return ROOK_ATTACKS[id][magic_index + 1]
+    magic_index = (relevant_occupancy * MAGIC_ROOK_BY_ID[id]) >> (64 - ROOK_RLBITS_BY_ID[id])
+    return UInt64(ROOK_ATTACKS[id][magic_index + 1])
 end
 
-# Functions that returns every possible pseudo-legal target square for a bishop
-# It doesn't handle Allies and Pins
-function getBishopAttacks(BITBOARDS, id)::UInt64
-    occ = BITBOARDS[1] | BITBOARDS[2] | BITBOARDS[3] | BITBOARDS[4] | BITBOARDS[5] | BITBOARDS[6] | BITBOARDS[7] | BITBOARDS[8] | BITBOARDS[9] | BITBOARDS[10] | BITBOARDS[11] | BITBOARDS[12]
+# calcolo degli attacchi di alfiere da una casa grazie ai magic numbers
+function getBishopAttacks(p::Position, id)::UInt64
+    occ = p.white_occ | p.black_occ
     relevant_occupancy = occ & ECO_BISHOP_MASKS_BY_ID[id]
-    magic_index = Int((relevant_occupancy * MAGIC_BISHOP_BY_ID[id]) >> (64 - BISHOP_RLBITS_BY_ID[id]))
+    magic_index = (relevant_occupancy * MAGIC_BISHOP_BY_ID[id]) >> (64 - BISHOP_RLBITS_BY_ID[id])
     return BISHOP_ATTACKS[id][magic_index + 1]
 end
 
-# Functions that returns every possible pseudo-legal target square for a queen
-# It doesn't handle Allies and Pins
-function getQueenAttacks(BITBOARDS, id)::UInt64
-    return getBishopAttacks(BITBOARDS, id) | getRookAttacks(BITBOARDS, id)
+# calcolo degli attacchi di regina da una casa grazie ai magic numbers
+function getQueenAttacks(p::Position, id)::UInt64
+    return getBishopAttacks(p, id) | getRookAttacks(p, id)
 end
 
-# Functions that returns every possible pseudo-legal target square for a knight
-# It doesn't handle Allies and Pins
+# Tutte queste altre funzioni calcolano gli attacchi dei pezzi rimanenti, consultando semplicemente tabelle precalcolate.
+@inline
 function getKingAttacks(id)::UInt64
     return KING_MASKS_BY_ID[id]
 end
 
-# Functions that returns every possible pseudo-legal target square for the king
-# It doesn't handle Allies and Safe Squares
+@inline
 function getKnightAttacks(id)::UInt64
     return KNIGHT_MASKS_BY_ID[id]
 end
 
-# Functions that returns attack pseudo-legal target square for the white pawn
-# It doesn't handle Allies and Pins
-# TODO: last rank captures (promotion)
+@inline
 function white_pawn_attacks(id)::UInt64
     return W_PAWN_ATTACKS_BY_ID[id]
 end
 
-# Functions that returns attack pseudo-legal target square for the black pawn
-# It doesn't handle Allies and Pins
-# TODO: last rank captures (promotion)
+@inline
 function black_pawn_attacks(id)::UInt64
     return B_PAWN_ATTACKS_BY_ID[id]
 end
 
-function w_pawns_shift(BITBOARDS)
-    occ_black = BITBOARDS[7] | BITBOARDS[8] | BITBOARDS[9] | BITBOARDS[10] | BITBOARDS[11] | BITBOARDS[12]
-    occ_white = BITBOARDS[1] | BITBOARDS[2] | BITBOARDS[3] | BITBOARDS[4] | BITBOARDS[5] | BITBOARDS[6]
-    empty = ~(occ_black | occ_white)
-    return (BITBOARDS[6] << 8 & empty) | (BITBOARDS[6] << 16 & empty & RANKS[4] & (empty << 8))
-end
-
-function b_pawns_shift(BITBOARDS)
-    occ_black = BITBOARDS[7] | BITBOARDS[8] | BITBOARDS[9] | BITBOARDS[10] | BITBOARDS[11] | BITBOARDS[12]
-    occ_white = BITBOARDS[1] | BITBOARDS[2] | BITBOARDS[3] | BITBOARDS[4] | BITBOARDS[5] | BITBOARDS[6]
-    empty = ~(occ_black | occ_white)
-    return (BITBOARDS[12] >> 8 & empty) | (BITBOARDS[12] >> 16 & empty & RANKS[5] & (empty >> 8))
-end
-
-
-#############################################################################################################################################################
-#############################################################################################################################################################
-#############################################################################################################################################################
-
-
-# This function was a test, but it is incomplete and contains bugs
-# main function that generates and formats list of legal moves
-# TODO: everything
-function generateMoves()
-    moves = []
-    if(getTurnGameState() == WHITE)
-        if(isSquareAttackedByBlack(getWhiteKing()) == true)
-            #We are in check
-            gameState[9] = true
-            if(isWhiteInDoubleCheck() == true)
-                possible_moves = getKingAttacks(getWhiteKing()) & ~getWhiteOccupancies()
-                for i = 1:count_ones(possible_moves)
-                    least_bitsquare = leastSignificantBit(possible_moves)
-                    if(isSquareAttackedByBlack(least_bitsquare) == true)
-                    possible_moves &= ~least_bitsquare
-                    end
-                end
-                push!(moves, (getWhiteKing(), possible_moves))
-                if(possible_moves == 0)
-                    #Checkmate: black wins -> decisive == true and winner == BLACK
-                    gameState[3] = true
-                    gameState[4] = BLACK
-                    println("Checkmate: Black wins!")
-                end
-            else
-            println("scacco singolo")
-            king_id = trailing_zeros(getWhiteKing()) + 1
-            #Horse Attack on king: we can move the king or capture the knight. We CANNOT interpose a piece or pawn.
-            enemies = getEnemyAttackersOnSquare(getWhiteKing(), BLACK)
-                if(enemies & getBlackKnights() != 0)
-                    pseudo_legal_king_moves = KING_MASKS_BY_ID[king_id]
-                    legal_king_moves = 0x0000000000000000
-                    count_to = count_ones(pseudo_legal_king_moves)
-                    for i=1:count_to
-                        least_bit = leastSignificantBit(pseudo_legal_king_moves)
-                        if(!isSquareAttackedByBlack(least_bit))
-                        legal_king_moves |= least_bit
-                        end
-                        pseudo_legal_king_moves &= ~least_bit
-                    end
-                push!(moves, (getWhiteKing(), legal_king_moves)) #mosse legali del re
-                #We have to look for source of check to determine if we can or cannot capture
-                white_capture_squad = getEnemyAttackersOnSquare(enemies, WHITE)
-                    if(white_capture_squad != 0)
-                    #Eventual pins. We handle them before everything else for now. Maybe we will change later
-
-
-
-
-                    queen_att1 = getQueenAttacks(getWhiteKing())
-                    pinned_candidates = queen_att1 & white_capture_squad & ~getWhiteKing()
-                    pinned_pieces = 0x0000000000000000
-                    enemy_peaceful = queen_att1 & getBlackOccupancies()
-                        if(pinned_candidates != 0)
-                        #We eliminate potential pinned pieces and generate again queen moves from the king position.
-                        #Then we intersect with Enemy occupancies and with ~enemy_peaceful
-                        id = trailing_zeros(getWhiteKing()) + 1
-                        relevant_occ = getOccupancies() & ~getWhiteKing() & ~pinned_candidates
-                        magicB_index = Int(((relevant_occ & ECO_BISHOP_MASKS_BY_ID[id]) * MAGIC_BISHOP_BY_ID[id]) >> (64 - BISHOP_RLBITS_BY_ID[id]))
-                        magicR_index = Int(((relevant_occ & ECO_ROOK_MASKS_BY_ID[id]) * MAGIC_ROOK_BY_ID[id]) >> (64 - ROOK_RLBITS_BY_ID[id]))
-                        dangerous_enemy = (~enemy_peaceful & (BISHOP_ATTACKS[id][magicB_index + 1] | ROOK_ATTACKS[id][magicR_index + 1]) & (getBlackBishops() | getBlackQueens() | getBlackRooks()))
-                            if(dangerous_enemy != 0)
-                                for i = 1:count_ones(dangerous_enemy)
-                                printBitBoard(dangerous_enemy)
-                                bitsquare = leastSignificantBit(dangerous_enemy)
-                                kingDAD = BITSQUARES_TO_DAD[getWhiteKing()]
-                                dangerDAD = BITSQUARES_TO_DAD[bitsquare]
-                                    if(dangerDAD[1] == kingDAD[1])
-                                        if((bitsquare & (getBlackBishops() | getBlackQueens())) != 0)
-                                        bishop_ray = getBishopAttacks(bitsquare)
-                                        pinned_piece = DIAGONALS[kingDAD[1]] & pinned_candidates & bishop_ray
-                                        legal_mask_for_pinned_piece = (DIAGONALS[kingDAD[1]] & bishop_ray) | bitsquare
-                                        pinned_pieces |= pinned_piece
-                                        println("------------------------------")
-                                        printBitBoard(pinned_piece)
-                                        legal_moves = getPseudoLegalMoves(pinned_piece) & legal_mask_for_pinned_piece & enemies
-                                        push!(moves, (pinned_piece, legal_moves))
-                                        println("pin su una diagonale")
-
-                                        end
-                                    end
-                                    if(dangerDAD[2] == kingDAD[2])
-                                        if((bitsquare & (getBlackBishops() | getBlackQueens())) != 0)
-                                        bishop_ray = getBishopAttacks(bitsquare)
-                                        pinned_piece = ANTI_DIAGONALS[kingDAD[2]] & pinned_candidates & bishop_ray
-                                        legal_mask_for_pinned_piece = (ANTI_DIAGONALS[kingDAD[2]] & bishop_ray) | bitsquare
-                                        pinned_pieces |= pinned_piece
-                                        legal_moves = getPseudoLegalMoves(pinned_piece) & legal_mask_for_pinned_piece & enemies
-                                        push!(moves, (pinned_piece, legal_moves))
-                                        println("pin su una antidiagonale")
-                                        end
-                                    end
-                                    kingCords = BITSQUARES_TO_COORDINATES[getWhiteKing()]
-                                    dangerCords = BITSQUARES_TO_COORDINATES[bitsquare]
-                                    if(dangerCords[1] == kingCords[1])
-                                        if((bitsquare & (getBlackRooks() | getBlackQueens())) != 0)
-                                        rook_ray = getRookAttacks(bitsquare)
-                                        pinned_piece = RANKS[kingCords[1]] & pinned_candidates & rook_ray
-                                        legal_mask_for_pinned_piece = (RANKS[kingCords[1]] & rook_ray) | bitsquare
-                                        pinned_pieces |= pinned_piece
-                                        legal_moves = getPseudoLegalMoves(pinned_piece) & legal_mask_for_pinned_piece & enemies
-                                        push!(moves, (pinned_piece, legal_moves))
-                                        println("pin su un riga")
-                                        end
-                                    end
-                                    if(dangerCords[2] == kingCords[2])
-                                        if((bitsquare & (getBlackRooks() | getBlackQueens())) != 0)
-                                            rook_ray = getRookAttacks(bitsquare)
-                                            pinned_piece = RANKS[kingCords[2]] & pinned_candidates & rook_ray
-                                            println(pinned_piece)
-                                            legal_mask_for_pinned_piece = (RANKS[kingCords[2]] & rook_ray) | bitsquare
-                                            pinned_pieces |= pinned_piece
-                                            legal_moves = getPseudoLegalMoves(pinned_piece) & legal_mask_for_pinned_piece & enemies
-                                            push!(moves, (pinned_piece, legal_moves))
-                                            println("pin su un colonna")
-                                        end
-                                    end
-                                end
-                            end
-
-                        end
-
-                    enemyOrEmpty = ~getWhiteOccupancies()
-                    occ = white_capture_squad & ~pinned_pieces
-                    while(occ != 0b0)
-                    piece = leastSignificantBit(occ)
-                    id = trailing_zeros(piece) + 1
-                    index = getBitBoardsIndex(piece)
-                        if(index == 1)
-                            push!(moves, (piece, KING_MASKS_BY_ID[id] & enemyOrEmpty & enemies))
-                        elseif(index == 2)
-                            push!(moves, (piece, getQueenAttacks(piece) & enemyOrEmpty & enemies))
-                        elseif(index ==3)
-                            push!(moves, (piece, getBishopAttacks(piece) & enemyOrEmpty & enemies))
-                        elseif(index == 4)
-                            push!(moves, (piece, KNIGHT_MASKS_BY_ID[id] & enemyOrEmpty & enemies))
-                        elseif(index == 5)
-                            push!(moves, (piece, getRookAttacks(piece) & enemyOrEmpty & enemies))
-                        elseif(index==6)
-                            push!(moves, (piece, (W_PAWN_ATTACKS_BY_ID[id] & enemies)))
-                        end
-            occ &= ~piece
-                    end
-                    end   
-
-                else #Single check and it is not a knight, so we have to identify the direction of check. Infact in this case we can block the check.
-                    if(enemies & getBlackBishops() != 0)
-
-                        pseudo_legal_king_moves = KING_MASKS_BY_ID[king_id]
-                    legal_king_moves = 0x0000000000000000
-                    count_to = count_ones(pseudo_legal_king_moves)
-                    for i=1:count_to
-                        least_bit = leastSignificantBit(pseudo_legal_king_moves)
-                        if(!isSquareAttackedByBlack(least_bit))
-                        legal_king_moves |= least_bit
-                        end
-                        pseudo_legal_king_moves &= ~least_bit
-                    end
-                push!(moves, (getWhiteKing(), legal_king_moves)) #mosse legali del re
-                #We have to look for source of check to determine if we can or cannot capture
-                squares_to_block = (getBishopAttacks(enemies) | enemies) & (DIAGONALS[BITSQUARES_TO_DAD[getWhiteKing()][1]] | ANTI_DIAGONALS[BITSQUARES_TO_DAD[getWhiteKing()][2]])
-                squares_to_block_temp = squares_to_block
-                    white_squad = 0x0000000000000000
-                    count_to = count_ones(squares_to_block)
-                    for i=1:count_to
-                        least_bit = leastSignificantBit(squares_to_block_temp)
-                        white_squad |= getEnemyAttackersOnSquare(least_bit, WHITE)
-                        squares_to_block_temp &= ~least_bit
-                    end
-                    white_squad &= ~getWhiteKing()
-                    if(white_squad != 0)
-                    #Eventual pins. We handle them before everything else for now. Maybe we will change later
-                    queen_att1 = getQueenAttacks(getWhiteKing())
-                    pinned_candidates = queen_att1 & white_squad & ~getWhiteKing()
-                    pinned_pieces = 0x0000000000000000
-                    enemy_peaceful = queen_att1 & getBlackOccupancies()
-                        if(pinned_candidates != 0)
-                        #We eliminate potential pinned pieces and generate again queen moves from the king position.
-                        #Then we intersect with Enemy occupancies and with ~enemy_peaceful
-                        id = trailing_zeros(getWhiteKing()) + 1
-                        relevant_occ = getOccupancies() & ~getWhiteKing() & ~pinned_candidates
-                        magicB_index = Int(((relevant_occ & ECO_BISHOP_MASKS_BY_ID[id]) * MAGIC_BISHOP_BY_ID[id]) >> (64 - BISHOP_RLBITS_BY_ID[id]))
-                        magicR_index = Int(((relevant_occ & ECO_ROOK_MASKS_BY_ID[id]) * MAGIC_ROOK_BY_ID[id]) >> (64 - ROOK_RLBITS_BY_ID[id]))
-                        dangerous_enemy = (~enemy_peaceful & (BISHOP_ATTACKS[id][magicB_index + 1] | ROOK_ATTACKS[id][magicR_index + 1]) & (getBlackBishops() | getBlackQueens() | getBlackRooks()))
-                            if(dangerous_enemy != 0)
-                                for i = 1:count_ones(dangerous_enemy)
-                                printBitBoard(dangerous_enemy)
-                                bitsquare = leastSignificantBit(dangerous_enemy)
-                                kingDAD = BITSQUARES_TO_DAD[getWhiteKing()]
-                                dangerDAD = BITSQUARES_TO_DAD[bitsquare]
-                                    if(dangerDAD[1] == kingDAD[1])
-                                        if((bitsquare & (getBlackBishops() | getBlackQueens())) != 0)
-                                        bishop_ray = getBishopAttacks(bitsquare)
-                                        pinned_piece = DIAGONALS[kingDAD[1]] & pinned_candidates & bishop_ray
-                                        legal_mask_for_pinned_piece = (DIAGONALS[kingDAD[1]] & bishop_ray) | bitsquare
-                                        pinned_pieces |= pinned_piece
-                                        println("------------------------------")
-                                        printBitBoard(pinned_piece)
-                                        legal_moves = getPseudoLegalMoves(pinned_piece) & legal_mask_for_pinned_piece & squares_to_block
-                                        push!(moves, (pinned_piece, legal_moves))
-                                        println("pin su una diagonale")
-
-                                        end
-                                    end
-                                    if(dangerDAD[2] == kingDAD[2])
-                                        if((bitsquare & (getBlackBishops() | getBlackQueens())) != 0)
-                                        bishop_ray = getBishopAttacks(bitsquare)
-                                        pinned_piece = ANTI_DIAGONALS[kingDAD[2]] & pinned_candidates & bishop_ray
-                                        legal_mask_for_pinned_piece = (ANTI_DIAGONALS[kingDAD[2]] & bishop_ray) | bitsquare
-                                        pinned_pieces |= pinned_piece
-                                        legal_moves = getPseudoLegalMoves(pinned_piece) & legal_mask_for_pinned_piece & squares_to_block
-                                        push!(moves, (pinned_piece, legal_moves))
-                                        println("pin su una antidiagonale")
-                                        end
-                                    end
-                                    kingCords = BITSQUARES_TO_COORDINATES[getWhiteKing()]
-                                    dangerCords = BITSQUARES_TO_COORDINATES[bitsquare]
-                                    if(dangerCords[1] == kingCords[1])
-                                        if((bitsquare & (getBlackRooks() | getBlackQueens())) != 0)
-                                        rook_ray = getRookAttacks(bitsquare)
-                                        pinned_piece = RANKS[kingCords[1]] & pinned_candidates & rook_ray
-                                        legal_mask_for_pinned_piece = (RANKS[kingCords[1]] & rook_ray) | bitsquare
-                                        pinned_pieces |= pinned_piece
-                                        legal_moves = getPseudoLegalMoves(pinned_piece) & legal_mask_for_pinned_piece & squares_to_block
-                                        push!(moves, (pinned_piece, legal_moves))
-                                        println("pin su un riga")
-                                        end
-                                    end
-                                    if(dangerCords[2] == kingCords[2])
-                                        if((bitsquare & (getBlackRooks() | getBlackQueens())) != 0)
-                                            rook_ray = getRookAttacks(bitsquare)
-                                            pinned_piece = RANKS[kingCords[2]] & pinned_candidates & rook_ray
-                                            println(pinned_piece)
-                                            legal_mask_for_pinned_piece = (RANKS[kingCords[2]] & rook_ray) | bitsquare
-                                            pinned_pieces |= pinned_piece
-                                            legal_moves = getPseudoLegalMoves(pinned_piece) & legal_mask_for_pinned_piece & squares_to_block
-                                            push!(moves, (pinned_piece, legal_moves))
-                                            println("pin su un colonna")
-                                        end
-                                    end
-                                end
-                            end
-
-                        end
-
-                    enemyOrEmpty = ~getWhiteOccupancies()
-                    occ = white_squad & ~pinned_pieces
-                    while(occ != 0b0)
-                    piece = leastSignificantBit(occ)
-                    id = trailing_zeros(piece) + 1
-                    index = getBitBoardsIndex(piece)
-                        if(index == 1)
-                            push!(moves, (piece, KING_MASKS_BY_ID[id] & enemyOrEmpty & squares_to_block))
-                        elseif(index == 2)
-                            push!(moves, (piece, getQueenAttacks(piece) & enemyOrEmpty & squares_to_block))
-                        elseif(index ==3)
-                            push!(moves, (piece, getBishopAttacks(piece) & enemyOrEmpty & squares_to_block))
-                        elseif(index == 4)
-                            push!(moves, (piece, KNIGHT_MASKS_BY_ID[id] & enemyOrEmpty & squares_to_block))
-                        elseif(index == 5)
-                            push!(moves, (piece, getRookAttacks(piece) & enemyOrEmpty & squares_to_block))
-                        elseif(index==6)
-                            push!(moves, (piece, (W_PAWN_ATTACKS_BY_ID[id] & getBlackOccupancies() | (w_pawns_forward() & FILES[8 - ((id - 1)% 8)])) & squares_to_block))
-                        end
-            occ &= ~piece
-                    end
-                    end
-
-
-                    end
-                    if(enemies & getBlackQueens() != 0)
-
-
-                        pseudo_legal_king_moves = KING_MASKS_BY_ID[king_id]
-                    legal_king_moves = 0x0000000000000000
-                    count_to = count_ones(pseudo_legal_king_moves)
-                    for i=1:count_to
-                        least_bit = leastSignificantBit(pseudo_legal_king_moves)
-                        if(!isSquareAttackedByBlack(least_bit))
-                        legal_king_moves |= least_bit
-                        end
-                        pseudo_legal_king_moves &= ~least_bit
-                    end
-                push!(moves, (getWhiteKing(), legal_king_moves)) #mosse legali del re
-                #We have to look for source of check to determine if we can or cannot capture
-                squares_to_block = (getQueenAttacks(enemies) | enemies) & (RANKS[BITSQUARES_TO_COORDINATES[getWhiteKing()][1]] | FILES[BITSQUARES_TO_COORDINATES[getWhiteKing()][2]])
-                squares_to_block_temp = squares_to_block
-                    white_squad = 0x0000000000000000
-                    count_to = count_ones(squares_to_block)
-                    for i=1:count_to
-                        least_bit = leastSignificantBit(squares_to_block_temp)
-                        white_squad |= getEnemyAttackersOnSquare(least_bit, WHITE)
-                        squares_to_block_temp &= ~least_bit
-                    end
-                    white_squad &= ~getWhiteKing()
-                    if(white_squad != 0)
-                    #Eventual pins. We handle them before everything else for now. Maybe we will change later
-                    queen_att1 = getQueenAttacks(getWhiteKing())
-                    pinned_candidates = queen_att1 & white_squad & ~getWhiteKing()
-                    pinned_pieces = 0x0000000000000000
-                    enemy_peaceful = queen_att1 & getBlackOccupancies()
-                        if(pinned_candidates != 0)
-                        #We eliminate potential pinned pieces and generate again queen moves from the king position.
-                        #Then we intersect with Enemy occupancies and with ~enemy_peaceful
-                        id = trailing_zeros(getWhiteKing()) + 1
-                        relevant_occ = getOccupancies() & ~getWhiteKing() & ~pinned_candidates
-                        magicB_index = Int(((relevant_occ & ECO_BISHOP_MASKS_BY_ID[id]) * MAGIC_BISHOP_BY_ID[id]) >> (64 - BISHOP_RLBITS_BY_ID[id]))
-                        magicR_index = Int(((relevant_occ & ECO_ROOK_MASKS_BY_ID[id]) * MAGIC_ROOK_BY_ID[id]) >> (64 - ROOK_RLBITS_BY_ID[id]))
-                        dangerous_enemy = (~enemy_peaceful & (BISHOP_ATTACKS[id][magicB_index + 1] | ROOK_ATTACKS[id][magicR_index + 1]) & (getBlackBishops() | getBlackQueens() | getBlackRooks()))
-                            if(dangerous_enemy != 0)
-                                for i = 1:count_ones(dangerous_enemy)
-                                printBitBoard(dangerous_enemy)
-                                bitsquare = leastSignificantBit(dangerous_enemy)
-                                kingDAD = BITSQUARES_TO_DAD[getWhiteKing()]
-                                dangerDAD = BITSQUARES_TO_DAD[bitsquare]
-                                    if(dangerDAD[1] == kingDAD[1])
-                                        if((bitsquare & (getBlackBishops() | getBlackQueens())) != 0)
-                                        bishop_ray = getBishopAttacks(bitsquare)
-                                        pinned_piece = DIAGONALS[kingDAD[1]] & pinned_candidates & bishop_ray
-                                        legal_mask_for_pinned_piece = (DIAGONALS[kingDAD[1]] & bishop_ray) | bitsquare
-                                        pinned_pieces |= pinned_piece
-                                        println("------------------------------")
-                                        printBitBoard(pinned_piece)
-                                        legal_moves = getPseudoLegalMoves(pinned_piece) & legal_mask_for_pinned_piece & squares_to_block
-                                        push!(moves, (pinned_piece, legal_moves))
-                                        println("pin su una diagonale")
-
-                                        end
-                                    end
-                                    if(dangerDAD[2] == kingDAD[2])
-                                        if((bitsquare & (getBlackBishops() | getBlackQueens())) != 0)
-                                        bishop_ray = getBishopAttacks(bitsquare)
-                                        pinned_piece = ANTI_DIAGONALS[kingDAD[2]] & pinned_candidates & bishop_ray
-                                        legal_mask_for_pinned_piece = (ANTI_DIAGONALS[kingDAD[2]] & bishop_ray) | bitsquare
-                                        pinned_pieces |= pinned_piece
-                                        legal_moves = getPseudoLegalMoves(pinned_piece) & legal_mask_for_pinned_piece & squares_to_block
-                                        push!(moves, (pinned_piece, legal_moves))
-                                        println("pin su una antidiagonale")
-                                        end
-                                    end
-                                    kingCords = BITSQUARES_TO_COORDINATES[getWhiteKing()]
-                                    dangerCords = BITSQUARES_TO_COORDINATES[bitsquare]
-                                    if(dangerCords[1] == kingCords[1])
-                                        if((bitsquare & (getBlackRooks() | getBlackQueens())) != 0)
-                                        rook_ray = getRookAttacks(bitsquare)
-                                        pinned_piece = RANKS[kingCords[1]] & pinned_candidates & rook_ray
-                                        legal_mask_for_pinned_piece = (RANKS[kingCords[1]] & rook_ray) | bitsquare
-                                        pinned_pieces |= pinned_piece
-                                        legal_moves = getPseudoLegalMoves(pinned_piece) & legal_mask_for_pinned_piece & squares_to_block
-                                        push!(moves, (pinned_piece, legal_moves))
-                                        println("pin su un riga")
-                                        end
-                                    end
-                                    if(dangerCords[2] == kingCords[2])
-                                        if((bitsquare & (getBlackRooks() | getBlackQueens())) != 0)
-                                            rook_ray = getRookAttacks(bitsquare)
-                                            pinned_piece = RANKS[kingCords[2]] & pinned_candidates & rook_ray
-                                            println(pinned_piece)
-                                            legal_mask_for_pinned_piece = (RANKS[kingCords[2]] & rook_ray) | bitsquare
-                                            pinned_pieces |= pinned_piece
-                                            legal_moves = getPseudoLegalMoves(pinned_piece) & legal_mask_for_pinned_piece & squares_to_block
-                                            push!(moves, (pinned_piece, legal_moves))
-                                            println("pin su un colonna")
-                                        end
-                                    end
-                                end
-                            end
-
-                        end
-
-                    enemyOrEmpty = ~getWhiteOccupancies()
-                    occ = white_squad & ~pinned_pieces
-                    while(occ != 0b0)
-                    piece = leastSignificantBit(occ)
-                    id = trailing_zeros(piece) + 1
-                    index = getBitBoardsIndex(piece)
-                        if(index == 1)
-                            push!(moves, (piece, KING_MASKS_BY_ID[id] & enemyOrEmpty & squares_to_block))
-                        elseif(index == 2)
-                            push!(moves, (piece, getQueenAttacks(piece) & enemyOrEmpty & squares_to_block))
-                        elseif(index ==3)
-                            push!(moves, (piece, getBishopAttacks(piece) & enemyOrEmpty & squares_to_block))
-                        elseif(index == 4)
-                            push!(moves, (piece, KNIGHT_MASKS_BY_ID[id] & enemyOrEmpty & squares_to_block))
-                        elseif(index == 5)
-                            push!(moves, (piece, getRookAttacks(piece) & enemyOrEmpty & squares_to_block))
-                        elseif(index==6)
-                            push!(moves, (piece, (W_PAWN_ATTACKS_BY_ID[id] & getBlackOccupancies() | (w_pawns_forward() & FILES[8 - ((id - 1)% 8)])) & squares_to_block))
-                        end
-            occ &= ~piece
-                    end
-                    end
-
-                    end
-                    if(enemies & getBlackRooks() != 0)
-
-
-
-
-                        pseudo_legal_king_moves = KING_MASKS_BY_ID[king_id]
-                    legal_king_moves = 0x0000000000000000
-                    count_to = count_ones(pseudo_legal_king_moves)
-                    for i=1:count_to
-                        least_bit = leastSignificantBit(pseudo_legal_king_moves)
-                        if(isSquareAttackedByBlack(least_bit))
-                            pseudo_legal_king_moves &= ~least_bit
-                            continue;
-                        else
-                        legal_king_moves |= least_bit
-                        end
-                        pseudo_legal_king_moves &= ~least_bit
-                    end
-                push!(moves, (getWhiteKing(), legal_king_moves)) #mosse legali del re
-                #We have to look for source of check to determine if we can or cannot capture
-                squares_to_block = (getRookAttacks(enemies) | enemies) & (RANKS[BITSQUARES_TO_COORDINATES[getWhiteKing()][1]] | FILES[BITSQUARES_TO_COORDINATES[getWhiteKing()][2]])
-                squares_to_block_temp = squares_to_block
-                    white_squad = 0x0000000000000000
-                    count_to = count_ones(squares_to_block)
-                    for i=1:count_to
-                        least_bit = leastSignificantBit(squares_to_block_temp)
-                        white_squad |= getEnemyAttackersOnSquare(least_bit, WHITE)
-                        squares_to_block_temp &= ~least_bit
-                    end
-                    white_squad &= ~getWhiteKing()
-                    if(white_squad != 0)
-                    #Eventual pins. We handle them before everything else for now. Maybe we will change later
-                    queen_att1 = getQueenAttacks(getWhiteKing())
-                    pinned_candidates = queen_att1 & white_squad & ~getWhiteKing()
-                    pinned_pieces = 0x0000000000000000
-                    enemy_peaceful = queen_att1 & getBlackOccupancies()
-                        if(pinned_candidates != 0)
-                        #We eliminate potential pinned pieces and generate again queen moves from the king position.
-                        #Then we intersect with Enemy occupancies and with ~enemy_peaceful
-                        id = trailing_zeros(getWhiteKing()) + 1
-                        relevant_occ = getOccupancies() & ~getWhiteKing() & ~pinned_candidates
-                        magicB_index = Int(((relevant_occ & ECO_BISHOP_MASKS_BY_ID[id]) * MAGIC_BISHOP_BY_ID[id]) >> (64 - BISHOP_RLBITS_BY_ID[id]))
-                        magicR_index = Int(((relevant_occ & ECO_ROOK_MASKS_BY_ID[id]) * MAGIC_ROOK_BY_ID[id]) >> (64 - ROOK_RLBITS_BY_ID[id]))
-                        dangerous_enemy = (~enemy_peaceful & (BISHOP_ATTACKS[id][magicB_index + 1] | ROOK_ATTACKS[id][magicR_index + 1]) & (getBlackBishops() | getBlackQueens() | getBlackRooks()))
-                            if(dangerous_enemy != 0)
-                                for i = 1:count_ones(dangerous_enemy)
-                                printBitBoard(dangerous_enemy)
-                                bitsquare = leastSignificantBit(dangerous_enemy)
-                                kingDAD = BITSQUARES_TO_DAD[getWhiteKing()]
-                                dangerDAD = BITSQUARES_TO_DAD[bitsquare]
-                                    if(dangerDAD[1] == kingDAD[1])
-                                        if((bitsquare & (getBlackBishops() | getBlackQueens())) != 0)
-                                        bishop_ray = getBishopAttacks(bitsquare)
-                                        pinned_piece = DIAGONALS[kingDAD[1]] & pinned_candidates & bishop_ray
-                                        legal_mask_for_pinned_piece = (DIAGONALS[kingDAD[1]] & bishop_ray) | bitsquare
-                                        pinned_pieces |= pinned_piece
-                                        println("------------------------------")
-                                        printBitBoard(pinned_piece)
-                                        legal_moves = getPseudoLegalMoves(pinned_piece) & legal_mask_for_pinned_piece & squares_to_block
-                                        push!(moves, (pinned_piece, legal_moves))
-                                        println("pin su una diagonale")
-
-                                        end
-                                    end
-                                    if(dangerDAD[2] == kingDAD[2])
-                                        if((bitsquare & (getBlackBishops() | getBlackQueens())) != 0)
-                                        bishop_ray = getBishopAttacks(bitsquare)
-                                        pinned_piece = ANTI_DIAGONALS[kingDAD[2]] & pinned_candidates & bishop_ray
-                                        legal_mask_for_pinned_piece = (ANTI_DIAGONALS[kingDAD[2]] & bishop_ray) | bitsquare
-                                        pinned_pieces |= pinned_piece
-                                        legal_moves = getPseudoLegalMoves(pinned_piece) & legal_mask_for_pinned_piece & squares_to_block
-                                        push!(moves, (pinned_piece, legal_moves))
-                                        println("pin su una antidiagonale")
-                                        end
-                                    end
-                                    kingCords = BITSQUARES_TO_COORDINATES[getWhiteKing()]
-                                    dangerCords = BITSQUARES_TO_COORDINATES[bitsquare]
-                                    if(dangerCords[1] == kingCords[1])
-                                        if((bitsquare & (getBlackRooks() | getBlackQueens())) != 0)
-                                        rook_ray = getRookAttacks(bitsquare)
-                                        pinned_piece = RANKS[kingCords[1]] & pinned_candidates & rook_ray
-                                        legal_mask_for_pinned_piece = (RANKS[kingCords[1]] & rook_ray) | bitsquare
-                                        pinned_pieces |= pinned_piece
-                                        legal_moves = getPseudoLegalMoves(pinned_piece) & legal_mask_for_pinned_piece & squares_to_block
-                                        push!(moves, (pinned_piece, legal_moves))
-                                        println("pin su un riga")
-                                        end
-                                    end
-                                    if(dangerCords[2] == kingCords[2])
-                                        if((bitsquare & (getBlackRooks() | getBlackQueens())) != 0)
-                                            rook_ray = getRookAttacks(bitsquare)
-                                            pinned_piece = RANKS[kingCords[2]] & pinned_candidates & rook_ray
-                                            println(pinned_piece)
-                                            legal_mask_for_pinned_piece = (RANKS[kingCords[2]] & rook_ray) | bitsquare
-                                            pinned_pieces |= pinned_piece
-                                            legal_moves = getPseudoLegalMoves(pinned_piece) & legal_mask_for_pinned_piece & squares_to_block
-                                            push!(moves, (pinned_piece, legal_moves))
-                                            println("pin su un colonna")
-                                        end
-                                    end
-                                end
-                            end
-
-                        end
-
-                    enemyOrEmpty = ~getWhiteOccupancies()
-                    occ = white_squad & ~pinned_pieces
-                    while(occ != 0b0)
-                    piece = leastSignificantBit(occ)
-                    id = trailing_zeros(piece) + 1
-                    index = getBitBoardsIndex(piece)
-                        if(index == 1)
-                            push!(moves, (piece, KING_MASKS_BY_ID[id] & enemyOrEmpty & squares_to_block))
-                        elseif(index == 2)
-                            push!(moves, (piece, getQueenAttacks(piece) & enemyOrEmpty & squares_to_block))
-                        elseif(index ==3)
-                            push!(moves, (piece, getBishopAttacks(piece) & enemyOrEmpty & squares_to_block))
-                        elseif(index == 4)
-                            push!(moves, (piece, KNIGHT_MASKS_BY_ID[id] & enemyOrEmpty & squares_to_block))
-                        elseif(index == 5)
-                            push!(moves, (piece, getRookAttacks(piece) & enemyOrEmpty & squares_to_block))
-                        elseif(index==6)
-                            push!(moves, (piece, (W_PAWN_ATTACKS_BY_ID[id] & getBlackOccupancies() | (w_pawns_forward() & FILES[8 - ((id - 1)% 8)])) & squares_to_block))
-                        end
-            occ &= ~piece
-                    end
-                    end
-
-
-
-
-                    end
-                end
-            end
-        else #If we are not in check
-
-            println("NOT IN CHECK")
-
-            #We are thinking about the king like a queen. We look after possible pinned candidates
-            queen_att1 = getQueenAttacks(getWhiteKing())
-            pinned_candidates = queen_att1 & getWhiteOccupancies() & ~getWhiteKing()
-            pinned_pieces = 0x0000000000000000
-            enemy_peaceful = queen_att1 & getBlackOccupancies()
-            if(pinned_candidates != 0)
-                #We eliminate potential pinned pieces and generate again queen moves from the king position.
-                #Then we intersect with Enemy occupancies and with ~enemy_peaceful
-                id = trailing_zeros(getWhiteKing()) + 1
-                relevant_occ = getOccupancies() & ~getWhiteKing() & ~pinned_candidates
-                magicB_index = Int(((relevant_occ & ECO_BISHOP_MASKS_BY_ID[id]) * MAGIC_BISHOP_BY_ID[id]) >> (64 - BISHOP_RLBITS_BY_ID[id]))
-                magicR_index = Int(((relevant_occ & ECO_ROOK_MASKS_BY_ID[id]) * MAGIC_ROOK_BY_ID[id]) >> (64 - ROOK_RLBITS_BY_ID[id]))
-                dangerous_enemy = (~enemy_peaceful & (BISHOP_ATTACKS[id][magicB_index + 1] | ROOK_ATTACKS[id][magicR_index + 1]) & (getBlackBishops() | getBlackQueens() | getBlackRooks()))
-                if(dangerous_enemy != 0)
-                    for i = 1:count_ones(dangerous_enemy)
-                        printBitBoard(dangerous_enemy)
-                        bitsquare = leastSignificantBit(dangerous_enemy)
-                        index = trailing_zeros(bitsquare) + 1
-                        kingDAD = BITSQUARES_TO_DAD[getWhiteKing()]
-                        dangerDAD = BITSQUARES_TO_DAD[bitsquare]
-                        if(dangerDAD[1] == kingDAD[1])
-                            if((bitsquare & (getBlackBishops() | getBlackQueens())) != 0)
-                                bishop_ray = getBishopAttacks(bitsquare)
-                                pinned_piece = DIAGONALS[kingDAD[1]] & pinned_candidates & bishop_ray
-                                legal_mask_for_pinned_piece = (DIAGONALS[kingDAD[1]] & bishop_ray) | bitsquare
-                                pinned_pieces |= pinned_piece
-                                println("------------------------------")
-                                printBitBoard(pinned_piece)
-                                legal_moves = getPseudoLegalMoves(pinned_piece) & legal_mask_for_pinned_piece
-                                push!(moves, (pinned_piece, legal_moves))
-                                println("pin su una diagonale")
-
-                            end
-                        end
-                        if(dangerDAD[2] == kingDAD[2])
-                            if((bitsquare & (getBlackBishops() | getBlackQueens())) != 0)
-                                bishop_ray = getBishopAttacks(bitsquare)
-                                pinned_piece = ANTI_DIAGONALS[kingDAD[2]] & pinned_candidates & bishop_ray
-                                legal_mask_for_pinned_piece = (ANTI_DIAGONALS[kingDAD[2]] & bishop_ray) | bitsquare
-                                pinned_pieces |= pinned_piece
-                                legal_moves = getPseudoLegalMoves(pinned_piece) & legal_mask_for_pinned_piece
-                                push!(moves, (pinned_piece, legal_moves))
-                                println("pin su una antidiagonale")
-                            end
-                        end
-                        kingCords = BITSQUARES_TO_COORDINATES[getWhiteKing()]
-                        dangerCords = BITSQUARES_TO_COORDINATES[bitsquare]
-                        if(dangerCords[1] == kingCords[1])
-                            if((bitsquare & (getBlackRooks() | getBlackQueens())) != 0)
-                                rook_ray = getRookAttacks(bitsquare)
-                                pinned_piece = RANKS[kingCords[1]] & pinned_candidates & rook_ray
-                                legal_mask_for_pinned_piece = (RANKS[kingCords[1]] & rook_ray) | bitsquare
-                                pinned_pieces |= pinned_piece
-                                legal_moves = getPseudoLegalMoves(pinned_piece) & legal_mask_for_pinned_piece
-                                push!(moves, (pinned_piece, legal_moves))
-                                println("pin su un riga")
-                            end
-                        end
-                        if(dangerCords[2] == kingCords[2])
-                            if((bitsquare & (getBlackRooks() | getBlackQueens())) != 0)
-                                rook_ray = getRookAttacks(bitsquare)
-                                pinned_piece = RANKS[kingCords[2]] & pinned_candidates & rook_ray
-                                println(pinned_piece)
-                                legal_mask_for_pinned_piece = (RANKS[kingCords[2]] & rook_ray) | bitsquare
-                                pinned_pieces |= pinned_piece
-                                legal_moves = getPseudoLegalMoves(pinned_piece) & legal_mask_for_pinned_piece
-                                push!(moves, (pinned_piece, legal_moves))
-                                println("pin su un colonna")
-                            end
-                        end
-                    end
-                end
-
-            end
-            
-
-        enemyOrEmpty = ~getWhiteOccupancies()
-        occ = getWhiteOccupancies() & ~pinned_pieces
-        while(occ != 0b0)
-            piece = leastSignificantBit(occ)
-            id = trailing_zeros(piece) + 1
-            index = getBitBoardsIndex(piece)
-            if(index == 1)
-                pseudo_legal = KING_MASKS_BY_ID[id] & enemyOrEmpty
-                legal_moves = 0x0000000000000000
-                count_to = count_ones(pseudo_legal)
-                for i=1:count_to
-                    least_bit = leastSignificantBit(pseudo_legal)
-                    if(!isSquareAttackedByBlack(least_bit))
-                    legal_moves |= least_bit
-                    end
-                    pseudo_legal &= ~least_bit
-                end
-                push!(moves, (piece, legal_moves))
-            elseif(index == 2)
-                push!(moves, (piece, getQueenAttacks(piece) & enemyOrEmpty))
-            elseif(index ==3)
-                push!(moves, (piece, getBishopAttacks(piece) & enemyOrEmpty))
-            elseif(index == 4)
-                push!(moves, (piece, KNIGHT_MASKS_BY_ID[id] & enemyOrEmpty))
-            elseif(index == 5)
-                push!(moves, (piece, getRookAttacks(piece) & enemyOrEmpty))
-            elseif(index==6)
-                push!(moves, (piece, (W_PAWN_ATTACKS_BY_ID[id] & getBlackOccupancies() | (w_pawns_forward() & FILES[8 - ((id - 1)% 8)]))))
-            end
-            occ &= ~piece
-        end
-        end
-        return moves
-    else # Black move generator
-        enemyOrEmpty = ~getBlackOccupancies()
-        occ = getBlackOccupancies()
-        while(occ != 0b0)
-            piece = leastSignificantBit(occ)
-            index = getBitBoardsIndex(piece)
-            if(index == 7)
-                push!(moves, (piece , get(KING_MASKS, piece, nothing) & enemyOrEmpty))
-            elseif(index == 8)
-                push!(moves, (piece , get(QUEEN_MASKS, piece, nothing) & enemyOrEmpty))
-            elseif(index == 9)
-                push!(moves, (piece , get(BISHOP_MASKS, piece, nothing) & enemyOrEmpty))
-            elseif(index == 10)
-                push!(moves, (piece , get(KNIGHT_MASKS, piece, nothing) & enemyOrEmpty))
-            elseif(index == 11)
-                push!(moves, (piece , get(ROOK_MASKS, piece, nothing) & enemyOrEmpty))
-            elseif(index== 12)
-                push!(moves, (piece , get(B_PAWN_ATTACKS, piece, nothing) & getWhiteOccupancies()))
-            end
-            occ &= ~piece
-        end
-    end
-end
-
-
-function getPseudoLegalMoves(piece)
-    if(getTurnGameState() == WHITE)
-        enemyOrEmpty = ~getWhiteOccupancies()
-        id = trailing_zeros(piece) + 1
-        index = getBitBoardsIndex(piece)
-        if(index == 1)
-            return KING_MASKS_BY_ID[id] & enemyOrEmpty
-        elseif(index == 2)
-            return getQueenAttacks(piece) & enemyOrEmpty
-        elseif(index ==3)
-            return getBishopAttacks(piece) & enemyOrEmpty
-        elseif(index == 4)
-            return KNIGHT_MASKS_BY_ID[id] & enemyOrEmpty
-        elseif(index == 5)
-            return getRookAttacks(piece) & enemyOrEmpty
-        elseif(index==6)
-            return ((W_PAWN_ATTACKS_BY_ID[id] & getBlackOccupancies()) | (w_pawns_forward() & FILES[8 - ((id - 1)% 8)]))
-        end
-end
-return 0x0000000000000000
-end
-
-
-# returns white pawns pseudo forward moves, only possibility for it being illegal is that it causes the check of the king.
-# Enpassant, captures and general PROMOTION is handled elsewhere
-function w_pawns_forward()
-    empty = ~getOccupancies()
-    return (getWhitePawns() << 8 & ~RANKS[8] & empty) | (getWhitePawns() << 16 & empty & RANKS[4] & (empty << 8))
-end
-
-# returns black pawns pseudo forward moves, only possibility for it being illegal is that it causes the check of the king.
-# Enpassant, captures and promotion is handled elsewhere
-function b_pawns_forward()
-    empty = ~getOccupancies()
-    return (getBlackPawns() >> 8 & ~RANKS[1] & empty) | (getBlackPawns() >> 16 & empty & RANKS[5] & (empty >> 8))
-end
-
-
-"""
-These functions that follows were used for generating Dictionaries in Move Data.
-"""
-
-# Knight MOVEMENT ONLY mask: knight mask is special as it is also a SeenByKnightMap (an enemy king cannot move to these squares)
-function knight_mask(bitsquare::UInt64)
-    mask = bitsquare << 10 | bitsquare << 17 | bitsquare << 6 | bitsquare << 15 | bitsquare >> 10 | bitsquare >> 17 | bitsquare >> 6 | bitsquare >> 15
-    if(get(BITSQUARES_TO_COORDINATES, bitsquare, nothing)[2] == 1 || get(BITSQUARES_TO_COORDINATES, bitsquare, nothing)[2] == 2)
-    mask = mask & ~FILES[8] & ~FILES[7]
-    end
-    if(get(BITSQUARES_TO_COORDINATES, bitsquare, nothing)[2] == 7 || get(BITSQUARES_TO_COORDINATES, bitsquare, nothing)[2] == 8)
-        mask = mask & ~FILES[1] & ~FILES[2]
-    end
-    return mask
-end
-
-# Rook MOVEMENT ONLY mask
-function rook_mask(bitsquare::UInt64)
-    rank = get(BITSQUARES_TO_COORDINATES, bitsquare, nothing)[1]
-    file = get(BITSQUARES_TO_COORDINATES, bitsquare, nothing)[2]
-    return xor(RANKS[rank], FILES[file])
-end
-
-# Bishop MOVEMENT ONLY mask
-function bishop_mask(bitsquare::UInt64)
-    diagonal = get(BITSQUARES_TO_DAD, bitsquare, nothing)[1]
-    anti_diagonal = get(BITSQUARES_TO_DAD, bitsquare, nothing)[2]
-    return xor(DIAGONALS[diagonal], ANTI_DIAGONALS[anti_diagonal])
-end
-
-# King MOVEMENT ONLY mask
-function king_mask(bitsquare::UInt64)
-    mask = bitsquare << 9 | bitsquare << 8 | bitsquare << 7 | bitsquare >> 1 | bitsquare >> 9 | bitsquare >> 8 | bitsquare >> 7 | bitsquare << 1
-    if(get(BITSQUARES_TO_COORDINATES, bitsquare, nothing)[2] == 1)
-    mask = mask & ~FILES[8]
-    end
-    if(get(BITSQUARES_TO_COORDINATES, bitsquare, nothing)[2] == 8)
-        mask = mask & ~FILES[1]
-    end
-    return mask
-end
-
-# Queen MOVEMENT ONLY mask
-function queen_mask(bitsquare::UInt64)
-    return xor(bishop_mask(bitsquare), rook_mask(bitsquare))
-end
-
-# White Pawn attack mask
-function w_pawn_attack(bitsquare::UInt64)
-    right_attack = bitsquare << 7
-    left_attack = bitsquare << 9
-    return (right_attack & ~FILES[1] & ~RANKS[8]) | (left_attack & ~FILES[8] & ~RANKS[8])
-end
-
-# Black Pawn attack mask
-function b_pawn_attack(bitsquare::UInt64)
-    right_attack = bitsquare >> 7
-    left_attack = bitsquare >> 9
-    return (right_attack & ~FILES[8] & ~RANKS[1]) | (left_attack & ~FILES[1] & ~RANKS[1])
-end
-
-
-
-"""
-MOVE SECTION:
-TODO: Everything
-"""
-
-
-
-
-# function that moves a piece from one bitsquare to another one, if the target square is occupied it replaces the piece.
-# note that alliance pieces are removed from the board too.
-function move(from::UInt64, to::UInt64)
-    indexFrom = getBitBoardsIndex(from)
-    if(indexFrom !== nothing)
-    indexTo = getBitBoardsIndex(to)
-    bitBoards[indexFrom] = (bitBoards[indexFrom] & ~from) | to
-        if(indexTo !== nothing)
-            bitBoards[indexTo] = bitBoards[indexTo] & ~to
-        end
-    end
-end
-
-# move function as above, but takes normal notation as input
-function move(fromSquare::String, toSquare::String)
-    from = get(SQUARES_TO_BITBOARDS, fromSquare, 0x0000000000000000)
-    to = get(SQUARES_TO_BITBOARDS, toSquare, 0x0000000000000000)
-    move(from, to)
-end
-
-
-"""
-EVERYTHING IN NEED FOR MAGIC NUMBERS
-"""
-
-# returns index of bitBoards array that contains a bitsquare received as input: helper function
-function getBitBoardsIndex(bitsquare::UInt64)
-    if(bitsquare & getOccupancies() != 0b0)
-    for i=1:12
-        square = bitsquare & bitBoards[i]
-        if(square != 0b0)
-            return i
-        end
-    end
-else
-    return nothing
-end
-end
-
-# Relevant bits only attack mask for the rook
-function initECORook()
-    array = []
-    result = 0
-    for i=1:64
-        cleanBitBoards()
-        bitBoards[5] = setBitOn(getWhiteRooks(), i)
-        result = rook_mask(getWhiteRooks())
-        if(get(BITSQUARES_TO_COORDINATES, getWhiteRooks(), nothing)[2] != 1)
-            result &= ~FILES[1]
-        end
-            if(get(BITSQUARES_TO_COORDINATES, getWhiteRooks(), nothing)[2] != 8)
-                result &= ~FILES[8]
-            end
-                if(get(BITSQUARES_TO_COORDINATES, getWhiteRooks(), nothing)[1] != 1)
-                    result &= ~RANKS[1]
-                end
-                    if(get(BITSQUARES_TO_COORDINATES, getWhiteRooks(), nothing)[1] != 8)
-                        result &= ~RANKS[8]
-                    end
-                    println("0b" * bitstring(getWhiteRooks()) * " => 0b" * bitstring(result) * ",")
-    end
-end
-
-    # Relevant bits only attack mask for the bishop
-    function initECOBishop()
-        array = []
-        result = 0
-        for i=1:64
-            cleanBitBoards()
-            bitBoards[3] = setBitOn(getWhiteBishops(), i)
-            result = bishop_mask(getWhiteBishops())
-            if(get(BITSQUARES_TO_COORDINATES, getWhiteBishops(), nothing)[2] != 1)
-                result &= ~FILES[1]
-            end
-                if(get(BITSQUARES_TO_COORDINATES, getWhiteBishops(), nothing)[2] != 8)
-                    result &= ~FILES[8]
-                end
-                    if(get(BITSQUARES_TO_COORDINATES, getWhiteBishops(), nothing)[1] != 1)
-                        result &= ~RANKS[1]
-                    end
-                        if(get(BITSQUARES_TO_COORDINATES, getWhiteBishops(), nothing)[1] != 8)
-                            result &= ~RANKS[8]
-                        end
-                    println("0b" * bitstring(getWhiteBishops()) * " => 0b" * bitstring(result) * ",")
-        end
-        end
-
-        #it checks only for least bit
-        function getLeastBitfromBitboard(bitsquare)
-            return trailing_zeros(bitsquare) + 1
-        end
-
-
-# generate valid rook attacks during runtime
+# per riempire le tabelle degli attacchi delle torri in base all'occupazione dei pezzi
+# è necessario prima generare gli attacchi in tutte le situazioni possibili al lancio.
 function rook_attacks_run(occupancy::UInt64, bitsquare::UInt64)
     attack = 0x0000000000000000
     coordinates = get(BITSQUARES_TO_COORDINATES, bitsquare, nothing)
@@ -2267,7 +621,8 @@ function rook_attacks_run(occupancy::UInt64, bitsquare::UInt64)
     return attack
 end
 
-# generate valid bishop attacks during runtime
+# per riempire le tabelle degli attacchi degli alfieri in base all'occupazione dei pezzi
+# è necessario prima generare gli attacchi in tutte le situazioni possibili al lancio.
 function bishop_attacks_run(occupancy::UInt64, bitsquare::UInt64)
     attack = 0x0000000000000000
     coordinates = get(BITSQUARES_TO_COORDINATES, bitsquare, nothing)
@@ -2327,8 +682,11 @@ function bishop_attacks_run(occupancy::UInt64, bitsquare::UInt64)
     return attack
 end
 
+function switchBit(bitboard::UInt64, id)::UInt64
+    return xor(bitboard, (0x0000000000000001 << (id - 1)))
+end
 
-# set blockers for rook
+# genera occupazione lungo traverse e colonne per una casa
 function setBlockersRook(index, bitsquare::UInt64)::UInt64
     occupancy = 0b0000000000000000000000000000000000000000000000000000000000000000
     attack_mask = get(ECO_ROOK_MASKS, bitsquare, nothing)
@@ -2348,7 +706,7 @@ function setBlockersRook(index, bitsquare::UInt64)::UInt64
     return occupancy
 end
 
-# set blockers for rook
+# genera occupazione lungo diagonali e anti-diagonali per una casa
 function setBlockersBishop(index, bitsquare::UInt64)::UInt64
     occupancy = 0b0000000000000000000000000000000000000000000000000000000000000000
     attack_mask = get(ECO_BISHOP_MASKS, bitsquare, nothing)
@@ -2368,113 +726,7 @@ function setBlockersBishop(index, bitsquare::UInt64)::UInt64
     return occupancy
 end
 
-# random UInt64 generator
-function random_uint64()::UInt64
-  u1::UInt64 = rand(UInt64) & 0x000000000000FFFF
-  u2::UInt64 = rand(UInt64) & 0x000000000000FFFF
-  u3::UInt64 = rand(UInt64) & 0x000000000000FFFF
-  u4::UInt64 = rand(UInt64) & 0x000000000000FFFF
-  return u1 | (u2 << 16) | (u3 << 32) | (u4 << 48)
-end
-
-# Few bits are better for finding magic numbers
-function random_uint64_fewbits()::UInt64
-  return random_uint64() & random_uint64() & random_uint64()
-end
-
-# Magic number generator for rooks
-function magic_rooks(bitsquare::UInt64)
-    fail::Bool = false
-    occupancies = []
-    attacks = []
-    used_attacks = Dict()
-    attack_mask = get(ECO_ROOK_MASKS, bitsquare, nothing)
-    rl_bits = get(ROOK_RLBITS_BY_BITSQUARE, bitsquare, nothing)
-    occupancy_indicies = 0b0000000000000000000000000000000000000000000000000000000000000001 << rl_bits
-    for i=0:(occupancy_indicies-1)
-        push!(occupancies, setBlockersRook(i, bitsquare))
-        push!(attacks, rook_attacks_run(occupancies[i + 1], bitsquare))
-    end
-
-    for count=1:3000000
-            magic_number::UInt64 = random_uint64_fewbits()
-            
-            if (count_ones((attack_mask * magic_number) & 0xFF00000000000000) < 6) 
-                continue
-            end
-            
-            fail = false
-            index = 0
-            while(!fail && index < occupancy_indicies)
-
-                index += 1
-                magic_index = (occupancies[index] * magic_number) >> (64 - rl_bits)
-                
-                if (get(used_attacks, magic_index, nothing) === nothing)
-
-                    used_attacks[magic_index] = attacks[index]
-
-                elseif(get(used_attacks, magic_index, nothing) != attacks[index])
-                    fail = true
-                    used_attacks = Dict()
-                end
-            end
-            if (!fail)
-                println("0b" * bitstring(bitsquare) * " => 0b" * bitstring(magic_number) * ",")
-                return
-            end
-        end
-        println("fail")
-end
-
-# Magic number generator for bishops
-function magic_bishops(bitsquare::UInt64)
-    fail = false
-    occupancies = []
-    attacks = []
-    used_attacks = Dict()
-    attack_mask = get(ECO_BISHOP_MASKS, bitsquare, nothing)
-    rl_bits = get(BISHOP_RLBITS_BY_BITSQUARE, bitsquare, nothing)
-    occupancy_indicies = 0b0000000000000000000000000000000000000000000000000000000000000001 << rl_bits
-    for i=0:(occupancy_indicies-1)
-        push!(occupancies, setBlockersBishop(i, bitsquare))
-        push!(attacks, bishop_attacks_run(occupancies[i + 1], bitsquare))
-    end
-
-    for count=1:100000
-            magic_number = random_uint64_fewbits()
-            
-            if (count_ones((attack_mask * magic_number) & 0xFF00000000000000) < 6) 
-                continue
-            end
-            
-            fail = false
-            index = 0
-            while(!fail && index < occupancy_indicies)
-
-                index += 1
-                magic_index = (occupancies[index] * magic_number) >> (64 - rl_bits)
-                
-                if (get(used_attacks, magic_index, nothing) === nothing)
-
-                    used_attacks[magic_index] = attacks[index]
-
-                elseif(get(used_attacks, magic_index, nothing) != attacks[index])
-                    fail = true
-                    used_attacks = Dict()
-                    magic_number = 0
-                end
-            end
-            if (!fail)
-                println("0b" * bitstring(bitsquare) * " => 0b" * bitstring(magic_number) * ",")
-                return
-            end
-        end
-        println("fail")
-end
-
-# Initialize a big Dictionary for rook attacks
-# magic numbers are being finally used
+# funzione che serve per riempire al lancio una grande tabella contenente tutti gli scenari per gli attacchi delle torri
 function init_rook_attacks()
     rook_attacks = Vector{Vector{UInt64}}(undef, 64)
     for i=1:64
@@ -2504,8 +756,7 @@ function init_rook_attacks()
         return rook_attacks
 end
 
-# Initialize a big Dictionary for bishop attacks
-# magic numbers are being finally used
+# funzione che serve per riempire al lancio una grande tabella contenente tutti gli scenari per gli attacchi degli alfieri
 function init_bishop_attacks()
     bishop_attacks = Vector{Vector{UInt64}}(undef, 64)
     for i=1:64
@@ -2534,200 +785,596 @@ function init_bishop_attacks()
         return bishop_attacks
 end
 
+################################################################################################
 
-"""
-The following functions are the final functions to get the piece movements easily
+# tabelle di attacchi per torri e alfieri: generazione al lancio
+const ROOK_ATTACKS::Vector{Vector{UInt64}} = init_rook_attacks()
+const BISHOP_ATTACKS::Vector{Vector{UInt64}} = init_bishop_attacks()
 
-These functions in partical return a bitboard that contains every single attacked square:
-1) they don't consider Allies
-2) they don't consider Pins
-3) they don't consider Safe Squares
-"""
 
-# Functions that returns every possible pseudo-legal target square for a rook
-# It doesn't handle Allies and Pins
-function getRookAttacks(bitsquare::UInt64)::UInt64
-    id = getLeastBitfromBitboard(bitsquare)
-    relevant_occupancy = getOccupancies() & ECO_ROOK_MASKS_BY_ID[id]
-    magic_index = Int((relevant_occupancy * MAGIC_ROOK_BY_ID[id]) >> (64 - ROOK_RLBITS_BY_ID[id]))
-    return ROOK_ATTACKS[id][magic_index + 1]
+setStartingPosition(POSITION)
+printBoard(POSITION)
+MOVE_LIST = MoveList([Move(0,0,0,0,false,0,false,false) for _ in 1:256], 0)
+MoveList() = MoveList([Move(0,0,0,0,false,0,false,false) for _ in 1:256], 0)
+Position() = Position(UInt64(0), UInt64(0), UInt64(0), UInt64(0), UInt64(0), UInt64(0), UInt64(0), UInt64(0), UInt64(0), true, true, true, true, true)
+COPY_POS = deepcopy(POSITION)
+
+################################################################################################
+
+const F1::UInt64 = RANKS[1] & FILES[6]
+const G1::UInt64 = RANKS[1] & FILES[7]
+const F1_G1::UInt64 = F1 | G1
+
+const B1::UInt64 = RANKS[1] & FILES[2]
+const C1::UInt64 = RANKS[1] & FILES[3]
+const D1::UInt64 = RANKS[1] & FILES[4]
+const C1_D1::UInt64 = C1 | D1
+const B1_C1_D1::UInt64 = B1 | C1 | D1
+
+const F8::UInt64 = RANKS[8] & FILES[6]
+const G8::UInt64 = RANKS[8] & FILES[7]
+const F8_G8::UInt64 = F8 | G8
+
+const B8::UInt64 = RANKS[8] & FILES[2]
+const C8::UInt64 = RANKS[8] & FILES[3]
+const D8::UInt64 = RANKS[8] & FILES[4]
+const C8_D8::UInt64 = C8 | D8
+const B8_C8_D8::UInt64 = B8 | C8 | D8
+
+const INDEX_G1::Int64 = trailing_zeros(G1) + 1
+const INDEX_C1::Int64 = trailing_zeros(C1) + 1
+const INDEX_C8::Int64 = trailing_zeros(C8) + 1
+const INDEX_G8::Int64 = trailing_zeros(G8) + 1
+
+@inline
+function getRookAttacksByOcc(id::Int64, occ::UInt64)::UInt64
+    relevant_occupancy = occ & ECO_ROOK_MASKS_BY_ID[id]
+    magic_index = (relevant_occupancy * MAGIC_ROOK_BY_ID[id]) >> (64 - ROOK_RLBITS_BY_ID[id])
+    return UInt64(ROOK_ATTACKS[id][magic_index + 1])
 end
 
-# Functions that returns every possible pseudo-legal target square for a bishop
-# It doesn't handle Allies and Pins
-function getBishopAttacks(bitsquare::UInt64)::UInt64
-    id = getLeastBitfromBitboard(bitsquare)
-    relevant_occupancy = getOccupancies() & ECO_BISHOP_MASKS_BY_ID[id]
-    magic_index = Int((relevant_occupancy * MAGIC_BISHOP_BY_ID[id]) >> (64 - BISHOP_RLBITS_BY_ID[id]))
+@inline
+function getBishopAttacksByOcc(id::Int64, occ::UInt64)::UInt64
+    relevant_occupancy = occ & ECO_BISHOP_MASKS_BY_ID[id]
+    magic_index = (relevant_occupancy * MAGIC_BISHOP_BY_ID[id]) >> (64 - BISHOP_RLBITS_BY_ID[id])
     return BISHOP_ATTACKS[id][magic_index + 1]
 end
 
-# Functions that returns every possible pseudo-legal target square for a queen
-# It doesn't handle Allies and Pins
-function getQueenAttacks(bitsquare::UInt64)::UInt64
-    return getBishopAttacks(bitsquare) | getRookAttacks(bitsquare)
+@inline
+function getQueenAttacksByOcc(id::Int64, occ::UInt64)::UInt64
+    return getBishopAttacksByOcc(id, occ) | getRookAttacksByOcc(id, occ)
 end
 
-# Functions that returns every possible pseudo-legal target square for a knight
-# It doesn't handle Allies and Pins
-function getKingAttacks(bitsquare::UInt64)::UInt64
-    id = getLeastBitfromBitboard(bitsquare)
-    return KING_MASKS_BY_ID[id]
-end
+const RAY_TABLE::Array{UInt64} = Array{UInt64}(undef, 64, 64) # tabella contenente bitboards di raggi tra casa1 e casa2
+const LINE_TABLE::Array{UInt64} = Array{UInt64}(undef, 64, 64) # tabella contenente linee di scacchiera tra casa1 e casa2 (intere traverse, colonne, diagonali o anti-diagonali)
+# queste tabelle contengono bitboard vuota se le case non sono allineate in alcun modo
 
-# Functions that returns every possible pseudo-legal target square for the king
-# It doesn't handle Allies and Safe Squares
-function getKnightAttacks(bitsquare::UInt64)::UInt64
-    id = getLeastBitfromBitboard(bitsquare)
-    return KNIGHT_MASKS_BY_ID[id]
-end
+# costruzione delle tabelle RAY_TABLE e LINE_TABLE
+function init_ray_table()
+    for sq1 in 1:64
+        for sq2 in 1:64
+            RAY_TABLE[sq1, sq2] = UInt64(0)
+            LINE_TABLE[sq1, sq2] = UInt64(0)
+            
+            if sq1 == sq2
+                continue
+            end
+            
+            line = UInt64(0)
+            ray = UInt64(0)
 
-# Functions that returns attack pseudo-legal target square for the white pawn
-# It doesn't handle Allies and Pins
-# TODO: last rank captures (promotion)
-function white_pawn_attacks(bitsquare::UInt64)::UInt64
-    id = getLeastBitfromBitboard(bitsquare)
-    return W_PAWN_ATTACKS_BY_ID[id]
-end
+            bishop_attacks1 = UInt64(0)
+            bishop_attacks2 = UInt64(0)
+            rook_attacks1 = UInt64(0)
+            rook_attacks2 = UInt64(0)
 
-# Functions that returns attack pseudo-legal target square for the black pawn
-# It doesn't handle Allies and Pins
-# TODO: last rank captures (promotion)
-function black_pawn_attacks(bitsquare::UInt64)::UInt64
-    id = getLeastBitfromBitboard(bitsquare)
-    return B_PAWN_ATTACKS_BY_ID[id]
-end
+            sq1_bb = UInt64(1) << (sq1 - 1)
+            sq2_bb = UInt64(1) << (sq2 - 1)
 
-"""
-Debug + have fun with magics functions
-"""
+            rank_sq1 = BITSQUARES_TO_COORDINATES[sq1_bb][1]
+            file_sq1 = BITSQUARES_TO_COORDINATES[sq1_bb][2]
+            rank_sq2 = BITSQUARES_TO_COORDINATES[sq2_bb][1]
+            file_sq2 = BITSQUARES_TO_COORDINATES[sq2_bb][2]
 
-# Sets random blockers (white pawns)
-function setRandomOccupancy(bitsquare::UInt64)
-    i = rand(0:4095)
-    bitBoards[6] = setBlockersRook(i, bitsquare) | setBlockersBishop(i, bitsquare)
-end
+            diag_sq1 = BITSQUARES_TO_DAD[sq1_bb][1]
+            anti_diag_sq1 = BITSQUARES_TO_DAD[sq1_bb][2]
+            diag_sq2 = BITSQUARES_TO_DAD[sq2_bb][1]
+            anti_diag_sq2 = BITSQUARES_TO_DAD[sq2_bb][2]
 
-# sets only one rook on a random square
-# if occ = true -> random blockers on the board
-# if toPrint = true -> prints board and bitboards of possible rook attacks
-# id debug = true -> debug mode
-function alone_rook(occ::Bool, toPrint::Bool, debug::Bool)
-    i = rand(1:64)
-    cleanBitBoards()
-    bitBoards[5] = setBitOn(getWhiteRooks(), i)
-    occ && setRandomOccupancy(getWhiteRooks())
-    if(toPrint)
-    printBoard()
-    println()
-    printBitBoard(getRookAttacks(getWhiteRooks()))
-    println()
-    end
-    if(debug)
-    var1 = getRookAttacks(getWhiteRooks())
-    var2 = rook_attacks_run(getOccupancies(), getWhiteRooks())
-    # it's everything ok?
-    if(var1 != var2)
-        println("$var1 != $var2") # not okay if this line is reached
-    end
-    end
-end
+            if rank_sq1 == rank_sq2
+                line = RANKS[rank_sq1]
+                rook_attacks1 = getRookAttacksByOcc(sq1, sq2_bb)
+                rook_attacks2 = getRookAttacksByOcc(sq2, sq1_bb)
+                ray = rook_attacks1 & rook_attacks2
+            elseif file_sq1 == file_sq2
+                line = FILES[file_sq1]
+                rook_attacks1 = getRookAttacksByOcc(sq1, sq2_bb)
+                rook_attacks2 = getRookAttacksByOcc(sq2, sq1_bb)
+                ray = rook_attacks1 & rook_attacks2
+            elseif diag_sq1 == diag_sq2
+                line = DIAGONALS[diag_sq1]
+                bishop_attacks1 = getBishopAttacksByOcc(sq1, sq2_bb)
+                bishop_attacks2 = getBishopAttacksByOcc(sq2, sq1_bb)
+                ray = bishop_attacks1 & bishop_attacks2
+            elseif anti_diag_sq1 == anti_diag_sq2
+                line = ANTI_DIAGONALS[anti_diag_sq1]
+                bishop_attacks1 = getBishopAttacksByOcc(sq1, sq2_bb)
+                bishop_attacks2 = getBishopAttacksByOcc(sq2, sq1_bb)
+                ray = bishop_attacks1 & bishop_attacks2
+            end
 
-# sets only one bishop on a random square
-# if occ = true -> random blockers on the board
-# if toPrint = true -> prints board and bitboards of possible bishop attacks
-# id debug = true -> debug mode
-function alone_bishop(occ::Bool, toPrint::Bool, debug::Bool)
-    i = rand(1:64)
-    cleanBitBoards()
-    bitBoards[3] = setBitOn(getWhiteBishops(), i)
-    occ && setRandomOccupancy(getWhiteBishops())
-    if(toPrint)
-    printBoard()
-    println()
-    printBitBoard(getBishopAttacks(getWhiteBishops()))
-    println()
-    end
-    if(debug)
-    var1 = getBishopAttacks(getWhiteBishops())
-    var2 = bishop_attacks_run(getOccupancies(), getWhiteBishops())
-    # it's everything ok?
-    if(var1 != var2)
-        println("$var1 != $var2")
-    end
+            if line != 0
+                LINE_TABLE[sq1, sq2] = line
+                RAY_TABLE[sq1, sq2] = ray
+            end
+        end
     end
 end
 
-# sets only one queen on a random square
-# if occ = true -> random blockers on the board
-# if toPrint = true -> prints board and bitboards of possible queen attacks
-function alone_queen(occ::Bool, toPrint::Bool)
-    i = rand(1:64)
-    cleanBitBoards()
-    bitBoards[2] = setBitOn(getWhiteQueens(), i)
-    occ && setRandomOccupancy(getWhiteQueens())
-    if(toPrint)
-    printBoard()
-    println()
-    printBitBoard(getQueenAttacks(getWhiteQueens()))
-    println()
+# inizializzazione delle tabelle
+init_ray_table()
+
+const NOT_FIRST_FILE::UInt64 = ~FILES[1]
+const NOT_LAST_FILE::UInt64 = ~FILES[8]
+
+# nuova (e si spera performante) funzione che genera solo ed esclusivamente mosse legali
+function generate_legal_moves(p::Position, move_list::MoveList)
+    move_list.amount = 0 # poniamo a zero il counter delle mosse nella move_list
+
+    occ = p.white_occ | p.black_occ # occupazione di tutti i pezzi sulla scacchiera
+    empty = ~occ # case vuote
+    ally_occ = p.turn ? p.white_occ : p.black_occ # occupazione dei pezzi alleati
+    enemy_occ = occ & ~ally_occ # occupazione dei pezzi nemici
+    enemyOrEmpty = ~ally_occ # case vuote o occupate dai nemici
+
+    our_king_bb = p.kings & ally_occ # il re del colore corrente (bitboard)
+    our_king_sq = trailing_zeros(our_king_bb) + 1 # indice casa del nostro re
+
+    # calcoliamo la bitboard di attacchi dei nemici, la bitboard dei pezzi che danno scacco, e la bitboard dei pezzi inchiodati
+    occ_for_attacks = occ & ~our_king_bb # bisogna togliere il re per calcolare attacchi nemici, perchè potrebbe coprire attacchi a raggi x
+    enemy_attack_map = generate_enemy_attacks(p, enemy_occ, occ_for_attacks)
+    safe_squares = ~enemy_attack_map
+    checkers, pinned_pieces = calculate_checkers_and_pins(p, our_king_sq, ally_occ, enemy_occ, occ)
+
+    # MOSSE DEL RE : si generano sempre, dividiamo tra catture e mosse quieti
+    king_moves = getKingAttacks(our_king_sq) & enemyOrEmpty & safe_squares
+    quiet_king_moves = king_moves & empty
+    attack_king_moves = king_moves & enemy_occ
+    while quiet_king_moves != 0
+        target_sq = trailing_zeros(quiet_king_moves) + 1
+        addMove(move_list, UInt8(our_king_sq), UInt8(target_sq), 0x06, 0x00, false, 0x00, false, false)
+        quiet_king_moves &= quiet_king_moves - 1
+    end
+    while attack_king_moves != 0
+        target_sq = trailing_zeros(attack_king_moves) + 1
+        addMove(move_list, UInt8(our_king_sq), UInt8(target_sq), 0x06, 0x00, false, 0x00, false, true)
+        attack_king_moves &= attack_king_moves - 1
+    end
+
+    # CUORE DELLA FUNZIONE: dividiamo in tre casi: scacco doppio (o più), scacco singolo, nessuno scacco
+    check_count = count_ones(checkers) # numero di scacchi
+
+    # CASO 1: scacco doppio (o più)
+    if check_count > 1
+        # sono legali solo le mosse del re quindi abbiamo finito
+        return
+        
+    # CASO 2: scacco singolo
+    elseif check_count == 1
+        attacker_sq = trailing_zeros(checkers) + 1
+        # la maschera delle mosse valide è catturare l'attaccante o bloccare il raggio, le mosse del re sono già state gestite
+        check_mask = checkers | RAY_TABLE[our_king_sq, attacker_sq]
+        
+        movable_pieces = ally_occ & ~pinned_pieces & ~our_king_bb
+        
+        # generiamo le mosse di tutti i pezzi che si possono muovere, filtriamo con check_mask i movimenti
+        generate_all_moves!(p, move_list, movable_pieces, check_mask, enemy_occ, occ, empty, enemyOrEmpty, our_king_bb)
+
+    # CASO 3: nessuno scacco
+    else # check_count == 0
+        
+        # PASSO 1: generiamo mosse di tutti i pezzi non inchiodati (filtro con maschera ~UInt64(0))
+        unpinned_movers = ally_occ & ~pinned_pieces & ~our_king_bb
+        generate_all_moves!(p, move_list, unpinned_movers, ~UInt64(0), enemy_occ, occ, empty, enemyOrEmpty, our_king_bb)
+        
+        # PASSO 2: generiamo mosse solo per i pezzi inchiodati.
+        pinned_movers = pinned_pieces
+        while pinned_movers != 0
+            pinned_bb = leastSignificantBit(pinned_movers)
+            pinned_sq = trailing_zeros(pinned_bb) + 1
+            
+            # il pezzo inchiodato si può muovere solo tra il re e il pezzo che inchioda, tuttavia possiamo filtrare con l'intera linea
+            pin_mask = LINE_TABLE[our_king_sq, pinned_sq]
+            
+            # Generiamo le mosse solo per questo pezzo, ma filtrate dalla sua prigione.
+            generate_all_moves!(p, move_list, pinned_bb, pin_mask, enemy_occ, occ, empty, enemyOrEmpty, our_king_bb)
+            
+            pinned_movers &= pinned_movers - 1
+        end
+
+        # PASSO 3: arrocchi, perchè non siamo sotto scacco quindi possono essere legali
+        if p.turn # arrocchi bianco
+            if ((p.w_kingside == true) && ((F1_G1 & empty & safe_squares) == F1_G1))
+                addMove(move_list, UInt8(our_king_sq), UInt8(INDEX_G1), 0x06, 0x00, false, 0x01, false, false)
+            end
+            if ((p.w_queenside == true) && ((B1_C1_D1 & empty) == B1_C1_D1) && ((C1_D1 & safe_squares) == C1_D1))
+                addMove(move_list, UInt8(our_king_sq), UInt8(INDEX_C1), 0x06, 0x00, false, 0x02, false, false)
+            end
+        else # arrocchi nero
+            if ((p.b_kingside == true) && ((F8_G8 & empty & safe_squares) == F8_G8))
+                addMove(move_list, UInt8(our_king_sq), UInt8(INDEX_G8), 0x06, 0x00, false, 0x03, false, false)
+            end
+            if ((p.b_queenside == true) && ((B8_C8_D8 & empty) == B8_C8_D8) && ((C8_D8 & safe_squares) == C8_D8))
+                addMove(move_list, UInt8(our_king_sq), UInt8(INDEX_C8), 0x06, 0x00, false, 0x04, false, false)
+            end
+        end
     end
 end
 
-function DebugForChecks()
-    cleanBitBoards()
-    bitBoards[7] = setBitOn(getBlackKing(), 1)
-    bitBoards[1] = setBitOn(getWhiteKing(), rand(11:64))
-    gameState[2] == WHITE
-    i = rand(1:64)
-    if(getOccupancies() & SQUARES_TO_BITBOARDS[i] == 0)
-    bitBoards[11] = setBitOn(getBlackRooks(), i)
-    end
-    j = rand(1:64)
-    if(getOccupancies() & SQUARES_TO_BITBOARDS[j] == 0)
-    bitBoards[10] = setBitOn(getBlackKnights(), j)
-    end
-    k = rand(1:64)
-    if(getOccupancies() & SQUARES_TO_BITBOARDS[k] == 0)
-    bitBoards[8] = setBitOn(getBlackQueens(), k)
-    end
-    printBoard()
-    if(isSquareAttackedByBlack(getWhiteKing()) == true)
-        println("scacco")
-    end
-    if(isWhiteInDoubleCheck())
-        println("doppio scacco")
+# funzione helper che genera una bitboard di case attaccate dall'esercito nemico
+function generate_enemy_attacks(p::Position, enemy_occ::UInt64, occ::UInt64)::UInt64
+    enemy_pawns = p.pawns & enemy_occ
+    enemy_knights = p.knights & enemy_occ
+    enemy_bishops = p.bishops & enemy_occ
+    enemy_rooks = p.rooks & enemy_occ
+    enemy_queens = p.queens & enemy_occ
+    enemy_king = p.kings & enemy_occ
+    enemy_attacks = UInt64(0)
+
+    enemy_attacks |= KING_MASKS_BY_ID[(trailing_zeros(enemy_king) + 1)]
+
+    not_file1_pawns = enemy_pawns & NOT_FIRST_FILE
+    not_file8_pawns = enemy_pawns & NOT_LAST_FILE
+
+    # dobbiamo differenziare tra attacchi pedonali neri e bianchi
+    if p.turn # se il turno è del bianco guardiamo attacchi dei pedoni neri
+        enemy_attacks |= (not_file1_pawns >> 7)
+        enemy_attacks |= (not_file8_pawns >> 9)
+    else # altrimenti dei bianchi
+        enemy_attacks |= (not_file1_pawns << 9)
+        enemy_attacks |= (not_file8_pawns << 7)
     end
 
+    while (enemy_knights != 0)
+        sq = trailing_zeros(enemy_knights) + 1
+        enemy_attacks |= getKnightAttacks(sq)
+        enemy_knights &= enemy_knights - 1
+    end
+
+    while (enemy_bishops != 0)
+        sq = trailing_zeros(enemy_bishops) + 1
+        enemy_attacks |= getBishopAttacksByOcc(sq, occ)
+        enemy_bishops &= enemy_bishops - 1
+    end
+
+    while (enemy_rooks != 0)
+        sq = trailing_zeros(enemy_rooks) + 1
+        enemy_attacks |= getRookAttacksByOcc(sq, occ)
+        enemy_rooks &= enemy_rooks - 1
+    end
+
+    while (enemy_queens != 0)
+        sq = trailing_zeros(enemy_queens) + 1
+        enemy_attacks |= getQueenAttacksByOcc(sq, occ)
+        enemy_queens &= enemy_queens - 1
+    end
+
+    return enemy_attacks
 end
 
-function DebugForPins()
-    cleanBitBoards()
-    bitBoards[1] = setBitOn(getWhiteKing(), 32)
-    setRandomOccupancy(SQUARES_TO_BITBOARDS[32])
-    gameState[2] = true
-    printBoard()
-    printState()
+# funzione che calcola maschere bitboard di pezzi inchiodati e di pezzi che danno scacco al re
+function calculate_checkers_and_pins(p::Position, our_king_sq::Int64, us_occ::UInt64, them_occ::UInt64, all_occ::UInt64)::Tuple{UInt64, UInt64}
+    checkers = UInt64(0)
+    pinned_pieces = UInt64(0)
+    
+    them_rooks_queens = (p.rooks | p.queens) & them_occ
+    them_bishops_queens = (p.bishops | p.queens) & them_occ
+    
+    # Caso orizzontale e verticale
+    potential_hv_attackers = ROOK_MASKS_BY_ID[our_king_sq] & them_rooks_queens
+    while potential_hv_attackers != 0
+        attacker_sq = trailing_zeros(potential_hv_attackers) + 1
+        attacker_bb = UInt64(1) << (attacker_sq - 1)
+        intervening = RAY_TABLE[our_king_sq, attacker_sq] & all_occ
+        count_of_pieces_on_ray = count_ones(intervening)
+        if count_of_pieces_on_ray == 0
+            checkers |= attacker_bb
+        elseif count_of_pieces_on_ray == 1 && (intervening & us_occ) != 0
+            pinned_pieces |= intervening
+        end
+        potential_hv_attackers &= potential_hv_attackers - 1
+    end
+    
+    # Caso diagonale
+    potential_d12_attackers = BISHOP_MASKS_BY_ID[our_king_sq] & them_bishops_queens
+    while potential_d12_attackers != 0
+        attacker_sq = trailing_zeros(potential_d12_attackers) + 1
+        attacker_bb = UInt64(1) << (attacker_sq - 1)
+        intervening = RAY_TABLE[our_king_sq, attacker_sq] & all_occ
+        count_of_pieces_on_ray = count_ones(intervening)
+        if count_of_pieces_on_ray == 0
+            checkers |= attacker_bb
+        elseif count_of_pieces_on_ray == 1 && (intervening & us_occ) != 0
+            pinned_pieces |= intervening
+        end
+        potential_d12_attackers &= potential_d12_attackers - 1
+    end
+    
+    # scacchi diretti
+    checkers |= getKnightAttacks(our_king_sq) & (p.knights & them_occ)
+    pawn_attack_func = p.turn ? white_pawn_attacks : black_pawn_attacks
+    checkers |= pawn_attack_func(our_king_sq) & (p.pawns & them_occ)
+    
+    return (checkers, pinned_pieces)
 end
 
-# other tests
-function random_rook_and_pawns()
-    cleanBitBoards()
-    i = rand(1:64)
-    bitBoards[5] = setBitOn(getWhiteRooks(), i)
-    setRandomOccupancy(getWhiteRooks())
-end
+const FIRST_RANK::UInt64 = RANKS[1]
+const SECOND_RANK::UInt64 = RANKS[2]
+const FOURTH_RANK::UInt64 = RANKS[4]
+const FIFTH_RANK::UInt64 = RANKS[5]
+const SEVENTH_RANK::UInt64 = RANKS[7]
+const EIGHT_RANK::UInt64 = RANKS[8]
 
-#fast print for debug purpose
-function print_rook_pseudotargets()
-    printBitBoard(getRookAttacks(getWhiteRooks()))
-end
+# generiamo tutte le mosse di "movers" filtrate con "move_mask": non gestiamo mosse del re e arrocchi
+function generate_all_moves!(p::Position, move_list::MoveList, movers::UInt64, move_mask::UInt64, enemy_occ::UInt64, all_occ::UInt64, empty::UInt64, enemyOrEmpty::UInt64, our_king_bb::UInt64)
+    # --- TORRI ---
+    our_rooks = p.rooks & movers
+    while our_rooks != 0
+        from_sq = trailing_zeros(our_rooks) + 1
+        
+        attacks = getRookAttacksByOcc(from_sq, all_occ)
+        legal_targets = attacks & enemyOrEmpty & move_mask
+        
+        captures = legal_targets & enemy_occ
+        quiet_moves = legal_targets & empty
+        
+        while captures != 0
+            to_sq = trailing_zeros(captures) + 1
+            addMove(move_list, UInt8(from_sq), UInt8(to_sq), 0x04, 0x00, false, 0x00, false, true)
+            captures &= captures - 1
+        end
+        while quiet_moves != 0
+            to_sq = trailing_zeros(quiet_moves) + 1
+            addMove(move_list, UInt8(from_sq), UInt8(to_sq), 0x04, 0x00, false, 0x00, false, false)
+            quiet_moves &= quiet_moves - 1
+        end
+        our_rooks &= our_rooks - 1
+    end
 
-function DebugRandomFiveMoves()
-    for i=1:5
-        moves = goFullLegal(bitBoards, gameState, bittyBoards)
-        doMove(moves[rand(1:length(moves))])
-        printBoard()
-        printState()
+    # --- ALFIERI ---
+    our_bishops = p.bishops & movers
+    while our_bishops != 0
+        from_sq = trailing_zeros(our_bishops) + 1
+        
+        attacks = getBishopAttacksByOcc(from_sq, all_occ)
+        legal_targets = attacks & enemyOrEmpty & move_mask
+        
+        captures = legal_targets & enemy_occ
+        quiet_moves = legal_targets & empty
+        
+        while captures != 0
+            to_sq = trailing_zeros(captures) + 1
+            addMove(move_list, UInt8(from_sq), UInt8(to_sq), 0x03, 0x00, false, 0x00, false, true)
+            captures &= captures - 1
+        end
+        while quiet_moves != 0
+            to_sq = trailing_zeros(quiet_moves) + 1
+            addMove(move_list, UInt8(from_sq), UInt8(to_sq), 0x03, 0x00, false, 0x00, false, false)
+            quiet_moves &= quiet_moves - 1
+        end
+        our_bishops &= our_bishops - 1
+    end
+
+    # --- REGINE ---
+    our_queens = p.queens & movers
+    while our_queens != 0
+        from_sq = trailing_zeros(our_queens) + 1
+        
+        attacks = getQueenAttacksByOcc(from_sq, all_occ)
+        legal_targets = attacks & enemyOrEmpty & move_mask
+        
+        captures = legal_targets & enemy_occ
+        quiet_moves = legal_targets & empty
+        
+        while captures != 0
+            to_sq = trailing_zeros(captures) + 1
+            addMove(move_list, UInt8(from_sq), UInt8(to_sq), 0x05, 0x00, false, 0x00, false, true)
+            captures &= captures - 1
+        end
+        while quiet_moves != 0
+            to_sq = trailing_zeros(quiet_moves) + 1
+            addMove(move_list, UInt8(from_sq), UInt8(to_sq), 0x05, 0x00, false, 0x00, false, false)
+            quiet_moves &= quiet_moves - 1
+        end
+        our_queens &= our_queens - 1
+    end
+
+    # --- CAVALLI ---
+    our_knights = p.knights & movers
+    while our_knights != 0
+        from_sq = trailing_zeros(our_knights) + 1
+        
+        attacks = getKnightAttacks(from_sq)
+        legal_targets = attacks & enemyOrEmpty & move_mask
+        
+        captures = legal_targets & enemy_occ
+        quiet_moves = legal_targets & empty
+        
+        while captures != 0
+            to_sq = trailing_zeros(captures) + 1
+            addMove(move_list, UInt8(from_sq), UInt8(to_sq), 0x02, 0x00, false, 0x00, false, true)
+            captures &= captures - 1
+        end
+        while quiet_moves != 0
+            to_sq = trailing_zeros(quiet_moves) + 1
+            addMove(move_list, UInt8(from_sq), UInt8(to_sq), 0x02, 0x00, false, 0x00, false, false)
+            quiet_moves &= quiet_moves - 1
+        end
+        our_knights &= our_knights - 1
+    end
+
+    # --- PEDONI ---
+    our_pawns = p.pawns & movers
+    if p.turn # pedoni bianchi
+        single_pushes = (our_pawns << 8) & empty & move_mask
+        double_pushes = ((our_pawns & SECOND_RANK) << 16) & empty & move_mask & (((our_pawns << 8) & empty) << 8)
+        
+        pawns_to_move = our_pawns
+        # iteriamo sui pedoni
+        while pawns_to_move != 0
+            from_sq_bb = leastSignificantBit(pawns_to_move)
+            from_sq = trailing_zeros(from_sq_bb) + 1
+            
+            # catture di pedone
+            attacks = white_pawn_attacks(from_sq)
+            legal_captures = attacks & enemy_occ & move_mask
+            while legal_captures != 0
+                to_sq_bb = leastSignificantBit(legal_captures)
+                to_sq = trailing_zeros(to_sq_bb) + 1
+                
+                if (to_sq_bb & EIGHT_RANK) != 0 # catture con promozione
+                    addMove(move_list, UInt8(from_sq), UInt8(to_sq), 0x01, 0x05, false, 0x00, false, true) # Regina
+                    addMove(move_list, UInt8(from_sq), UInt8(to_sq), 0x01, 0x04, false, 0x00, false, true) # Torre
+                    addMove(move_list, UInt8(from_sq), UInt8(to_sq), 0x01, 0x03, false, 0x00, false, true) # Alfiere
+                    addMove(move_list, UInt8(from_sq), UInt8(to_sq), 0x01, 0x02, false, 0x00, false, true) # Cavallo
+                else # catture normali
+                    addMove(move_list, UInt8(from_sq), UInt8(to_sq), 0x01, 0x00, false, 0x00, false, true)
+                end
+                legal_captures &= legal_captures - 1
+            end
+
+            # spinta singola di pedone
+            if ((from_sq_bb << 8) & single_pushes) != 0
+                to_sq = from_sq + 8
+                if ((UInt64(1) << (to_sq - 1)) & EIGHT_RANK) != 0 # spinta con promozione
+                    addMove(move_list, UInt8(from_sq), UInt8(to_sq), 0x01, 0x05, false, 0x00, false, false) # Regina
+                    addMove(move_list, UInt8(from_sq), UInt8(to_sq), 0x01, 0x04, false, 0x00, false, false) # Torre
+                    addMove(move_list, UInt8(from_sq), UInt8(to_sq), 0x01, 0x03, false, 0x00, false, false) # Alfiere
+                    addMove(move_list, UInt8(from_sq), UInt8(to_sq), 0x01, 0x02, false, 0x00, false, false) # Cavallo
+                else # spinta singola normale
+                    addMove(move_list, UInt8(from_sq), UInt8(to_sq), 0x01, 0x00, false, 0x00, false, false)
+                end
+            end
+            if ((from_sq_bb << 16) & double_pushes) != 0
+                to_sq = from_sq + 16
+                addMove(move_list, UInt8(from_sq), UInt8(to_sq), 0x01, 0x00, false, 0x00, true, false)
+            end
+
+            # en passant
+            if p.enpassant != 0
+                ep_capture = attacks & p.enpassant
+                if ep_capture != 0
+                en_passant_check = move_mask == (ep_capture >> 8)
+                if en_passant_check || ((ep_capture & move_mask) != 0)
+                    is_legal = true # assumiamo la mossa legale per ora
+                    to_sq = trailing_zeros(ep_capture) + 1
+        
+                    # controllo apposito per inchiodatura speciale en-passant
+                    captured_pawn_sq = to_sq - 8
+        
+                    # se il nostro re è sulla quinta traversa (quella dell'enpassant per il bianco)
+                    if our_king_bb & FIFTH_RANK != 0
+            
+                    # rimuoviamo entrambi i pedoni per vedere se si scopre uno scacco
+                    occ_without_pawns = all_occ & ~from_sq_bb & ~(UInt64(1) << (captured_pawn_sq - 1))
+            
+                    # ci sono torri o regine nemiche sulla stessa traversa?
+                    enemy_rooks_queens = (p.rooks | p.queens) & enemy_occ & FIFTH_RANK
+                        if enemy_rooks_queens != 0
+                        # controlliamo se una di queste dà scacco al re sulla scacchiera fittizia
+                        rook_attacks_on_king = getRookAttacksByOcc(trailing_zeros(our_king_bb) + 1, occ_without_pawns)
+                            if (rook_attacks_on_king & enemy_rooks_queens) != 0
+                                is_legal = false
+                            end
+                        end
+                    end
+
+                    if is_legal
+                        addMove(move_list, UInt8(from_sq), UInt8(to_sq), 0x01, 0x00, true, 0x00, false, true)
+                    end
+                end
+                end
+            end
+            
+            pawns_to_move &= pawns_to_move - 1
+        end
+    else # pedoni neri
+        single_pushes = (our_pawns >> 8) & empty & move_mask
+        double_pushes = ((our_pawns & SEVENTH_RANK) >> 16) & empty & move_mask & (((our_pawns >> 8) & empty) >> 8)
+        
+        pawns_to_move = our_pawns
+        while pawns_to_move != 0
+            from_sq_bb = leastSignificantBit(pawns_to_move)
+            from_sq = trailing_zeros(from_sq_bb) + 1
+            
+            # catture
+            attacks = black_pawn_attacks(from_sq)
+            legal_captures = attacks & move_mask & enemy_occ
+            
+            while legal_captures != 0
+                to_sq_bb = leastSignificantBit(legal_captures)
+                to_sq = trailing_zeros(to_sq_bb) + 1
+                
+                if (to_sq_bb & FIRST_RANK) != 0 # catture con promozione
+                    addMove(move_list, UInt8(from_sq), UInt8(to_sq), 0x01, 0x05, false, 0x00, false, true) # Regina
+                    addMove(move_list, UInt8(from_sq), UInt8(to_sq), 0x01, 0x04, false, 0x00, false, true) # Torre
+                    addMove(move_list, UInt8(from_sq), UInt8(to_sq), 0x01, 0x03, false, 0x00, false, true) # Alfiere
+                    addMove(move_list, UInt8(from_sq), UInt8(to_sq), 0x01, 0x02, false, 0x00, false, true) # Cavallo
+                else # catture normali
+                    addMove(move_list, UInt8(from_sq), UInt8(to_sq), 0x01, 0x00, false, 0x00, false, true)
+                end
+                legal_captures &= legal_captures - 1
+            end
+
+            # spinta singola di pedone
+            if ((from_sq_bb >> 8) & single_pushes) != 0
+                to_sq = from_sq - 8
+                if ((UInt64(1) << (to_sq - 1)) & FIRST_RANK) != 0 # spinta con promozione
+                    addMove(move_list, UInt8(from_sq), UInt8(to_sq), 0x01, 0x05, false, 0x00, false, false) # Regina
+                    addMove(move_list, UInt8(from_sq), UInt8(to_sq), 0x01, 0x04, false, 0x00, false, false) # Torre
+                    addMove(move_list, UInt8(from_sq), UInt8(to_sq), 0x01, 0x03, false, 0x00, false, false) # Alfiere
+                    addMove(move_list, UInt8(from_sq), UInt8(to_sq), 0x01, 0x02, false, 0x00, false, false) # Cavallo
+                else # spinta singola normale
+                    addMove(move_list, UInt8(from_sq), UInt8(to_sq), 0x01, 0x00, false, 0x00, false, false)
+                end
+            end
+            if ((from_sq_bb >> 16) & double_pushes) != 0
+                to_sq = from_sq - 16
+                addMove(move_list, UInt8(from_sq), UInt8(to_sq), 0x01, 0x00, false, 0x00, true, false)
+            end
+            
+            # en passant
+            if p.enpassant != 0
+                ep_capture = attacks & p.enpassant
+                if ep_capture != 0
+                en_passant_check = move_mask == (ep_capture << 8)
+                if en_passant_check || ((ep_capture & move_mask) != 0)
+                    is_legal = true
+                    to_sq = trailing_zeros(ep_capture) + 1
+        
+                    captured_pawn_sq = to_sq + 8
+        
+                    if (our_king_bb & FOURTH_RANK) != 0
+                        occ_without_pawns = all_occ & ~from_sq_bb & ~(UInt64(1) << (captured_pawn_sq - 1))
+                        enemy_rooks_queens = (p.rooks | p.queens) & enemy_occ & FOURTH_RANK
+                        if enemy_rooks_queens != 0
+                            our_king_sq = trailing_zeros(our_king_bb) + 1
+                            rook_attacks_on_king = getRookAttacksByOcc(our_king_sq, occ_without_pawns)
+                            if (rook_attacks_on_king & enemy_rooks_queens) != 0
+                            is_legal = false
+                            end
+                        end
+                    end
+
+                    if is_legal
+                        addMove(move_list, UInt8(from_sq), UInt8(to_sq), 0x01, 0x00, true, 0x00, false, true)
+                    end
+                end
+                end
+            end
+            pawns_to_move &= pawns_to_move - 1
+        end
     end
 end
+
+

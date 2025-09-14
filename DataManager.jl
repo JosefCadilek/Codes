@@ -1,37 +1,45 @@
 """
-File containing datas
-Containing functions managing the data
+Questo file contiene alcuni dati utili per gestire le bitboards e altro
 """
 
 export RANKS, FILES, DIAGONALS, ANTI_DIAGONALS, SQUARES_TO_BITBOARDS, BITSQUARES_TO_COORDINATES, BITSQUARES_TO_DAD, BITSQUARES_TO_ID, BITSQUARES_TO_NOTATION
 
-RANKS = [0xff, 0xff00, 0xff0000,
-0xff000000, 0xff00000000, 0xff0000000000,
-0xff000000000000, 0xff00000000000000];
+# maschere bit delle traverse
+RANKS::Vector{UInt64} = [
+0x00000000000000ff, 0x000000000000ff00, 0x0000000000ff0000,
+0x00000000ff000000, 0x000000ff00000000, 0x0000ff0000000000,
+0x00ff000000000000, 0xff00000000000000];
 
-FILES = [0x8080808080808080, 0x4040404040404040,
+# maschere bit delle colonne
+FILES::Vector{UInt64} = [
+0x8080808080808080, 0x4040404040404040,
 0x2020202020202020, 0x1010101010101010,
 0x0808080808080808, 0x0404040404040404,
 0x0202020202020202, 0x0101010101010101];
 
-    #Diagonals -> #15
-    DIAGONALS = [0x1, 0x102, 0x10204, 0x1020408, 0x102040810,
-    0x10204081020, 0x1020408102040,
-    0x102040810204080, 0x204081020408000,
-    0x408102040800000, 0x810204080000000,
+    # maschere bit delle diagonali
+    DIAGONALS::Vector{UInt64} = [
+    0x0000000000000001,
+    0x0000000000000102, 0x0000000000010204,
+    0x0000000001020408, 0x0000000102040810,
+    0x0000010204081020, 0x0001020408102040,
+    0x0102040810204080, 0x0204081020408000,
+    0x0408102040800000, 0x0810204080000000,
     0x1020408000000000, 0x2040800000000000,
     0x4080000000000000, 0x8000000000000000];
 
-    #AntiDiagonals -> #15
-    ANTI_DIAGONALS = [0x80, 0x8040, 0x804020, 0x80402010, 0x8040201008,
-    0x804020100804, 0x80402010080402,
+    # maschere bit delle anti-diagonali
+    ANTI_DIAGONALS::Vector{UInt64} = [
+    0x0000000000000080,
+    0x0000000000008040, 0x0000000000804020, 
+    0x0000000080402010, 0x0000008040201008,
+    0x0000804020100804, 0x0080402010080402,
     0x8040201008040201, 0x4020100804020100,
     0x2010080402010000, 0x1008040201000000,
-    0x804020100000000, 0x402010000000000,
-    0x201000000000000, 0x100000000000000];
+    0x0804020100000000, 0x0402010000000000,
+    0x0201000000000000, 0x0100000000000000];
 
-# Giant dictionary that translates IDs and coordinates into SquareBitBoards
-# Useful for future translation, if needed from bits to arrays.
+# grande dizionario che permette la traduzione dall'indice della casa alla sua maschera bit e altro
 SQUARES_TO_BITBOARDS = Dict(
 1 => 0b0000000000000000000000000000000000000000000000000000000000000001,
 2 => 0b0000000000000000000000000000000000000000000000000000000000000010,
@@ -163,7 +171,7 @@ SQUARES_TO_BITBOARDS = Dict(
 "a8" => 0b1000000000000000000000000000000000000000000000000000000000000000)
 
 
-# Dictionary for ranks and files number, starting from bitSquare
+# dizionario per passare facilmente da bitsquare a coordinate sulla scacchiera (TRAVERSA, COLONNA)
 BITSQUARES_TO_COORDINATES=Dict(
 0b0000000000000000000000000000000000000000000000000000000000000001 => (1, 8),
 0b0000000000000000000000000000000000000000000000000000000000000010 => (1, 7),
@@ -231,7 +239,7 @@ BITSQUARES_TO_COORDINATES=Dict(
 0b1000000000000000000000000000000000000000000000000000000000000000 => (8, 1)
 )
 
-# Dictionary for Diagonals and antidiagonals, starting from bitSquare
+# dizionario per passare facilmente da bitsquare a coordinate sulla scacchiera (DIAGONALE, ANTI-DIAGONALE)
 BITSQUARES_TO_DAD=Dict(
     0b0000000000000000000000000000000000000000000000000000000000000001 => (1, 8),
     0b0000000000000000000000000000000000000000000000000000000000000010 => (2, 7),
@@ -301,7 +309,7 @@ BITSQUARES_TO_DAD=Dict(
 
 
 
-# Dictionary normal notation, starting from bitSquare
+# dizionario per ottenere la notazione delle case a partire dalla maschera bit
 BITSQUARES_TO_NOTATION=Dict(
 0b0000000000000000000000000000000000000000000000000000000000000001 => "h1",
 0b0000000000000000000000000000000000000000000000000000000000000010 => "g1",
@@ -369,7 +377,7 @@ BITSQUARES_TO_NOTATION=Dict(
 0b1000000000000000000000000000000000000000000000000000000000000000 => "a8"
 )
 
-# bitsquare as a key, output ID as in board definition (1 on h1, 2 on g1 ..., 9 on h2 ... )
+# dizionario per passare da bitsquare a indice della casa
 BITSQUARES_TO_ID=Dict(
     0b0000000000000000000000000000000000000000000000000000000000000001 => 1,
     0b0000000000000000000000000000000000000000000000000000000000000010 => 2,
@@ -437,7 +445,11 @@ BITSQUARES_TO_ID=Dict(
     0b1000000000000000000000000000000000000000000000000000000000000000 => 64
 )
 
-HM_W_PAWN=[
+"""
+Mappe di calore per tutti i pezzi di tutti i colori. Alcune speciali per i pedoni passati e per il re in finale.
+"""
+# pedoni bianchi
+const HM_W_PAWN= Int64[
 0,  0,  0,  0,  0,  0,  0,  0,
 50, 50, 50, 50, 50, 50, 50, 50,
 10, 10, 20, 30, 30, 20, 10, 10,
@@ -447,7 +459,8 @@ HM_W_PAWN=[
  5, 10, 10,-20,-20, 10, 10,  5,
  0,  0,  0,  0,  0,  0,  0,  0]
 
- HM_B_PAWN=[
+ # pedoni neri
+const HM_B_PAWN= Int64[
 0,  0,  0,  0,  0,  0,  0,  0,
  5, 10, 10,-20,-20, 10, 10,  5,
  5, -5,-10,  0,  0,-10, -5,  5,
@@ -457,7 +470,8 @@ HM_W_PAWN=[
  50, 50, 50, 50, 50, 50, 50, 50,
  0,  0,  0,  0,  0,  0,  0,  0]
 
- HM_W_KNIGHT =[
+ # cavalli bianchi
+const HM_W_KNIGHT = Int64[
 -50,-40,-30,-30,-30,-30,-40,-50,
 -40,-20,  0,  0,  0,  0,-20,-40,
 -30,  0, 10, 15, 15, 10,  0,-30,
@@ -467,7 +481,8 @@ HM_W_PAWN=[
 -40,-20,  0,  5,  5,  0,-20,-40,
 -50,-40,-30,-30,-30,-30,-40,-50]
 
- HM_B_KNIGHT =[
+# cavalli neri
+const HM_B_KNIGHT = Int64[
 -50,-40,-30,-30,-30,-30,-40,-50,
 -40,-20,  0,  5,  5,  0,-20,-40,
 -30,  5, 10, 15, 15, 10,  5,-30,
@@ -477,7 +492,8 @@ HM_W_PAWN=[
 -40,-20,  0,  0,  0,  0,-20,-40,
 -50,-40,-30,-30,-30,-30,-40,-50]
 
- HM_W_BISHOP=[
+# alfieri bianchi
+ const HM_W_BISHOP= Int64[
 -20,-10,-10,-10,-10,-10,-10,-20,
 -10,  0,  0,  0,  0,  0,  0,-10,
 -10,  0,  5, 10, 10,  5,  0,-10,
@@ -487,7 +503,8 @@ HM_W_PAWN=[
 -10,  5,  0,  0,  0,  0,  5,-10,
 -20,-10,-10,-10,-10,-10,-10,-20]
 
-HM_B_BISHOP=[
+# alfieri neri
+const HM_B_BISHOP= Int64[
 -20,-10,-10,-10,-10,-10,-10,-20,
 -10,  5,  0,  0,  0,  0,  5,-10,
 -10, 10, 10, 10, 10, 10, 10,-10,
@@ -498,7 +515,8 @@ HM_B_BISHOP=[
 -20,-10,-10,-10,-10,-10,-10,-20 
 ]
 
-HM_W_ROOK = [
+# torri bianche
+const HM_W_ROOK = Int64[
   0,  0,  0,  0,  0,  0,  0,  0,
   5, 10, 10, 10, 10, 10, 10,  5,
  -5,  0,  0,  0,  0,  0,  0, -5,
@@ -506,11 +524,12 @@ HM_W_ROOK = [
  -5,  0,  0,  0,  0,  0,  0, -5,
  -5,  0,  0,  0,  0,  0,  0, -5,
  -5,  0,  0,  0,  0,  0,  0, -5,
-  0,  0,  0,  5,  5,  0,  0,  0
+  -10,  0,  0,  10,  10, 0,  0,  -10
 ]
 
-HM_B_ROOK = [
-  0,  0,  0,  5,  5,  0,  0,  0,
+# torri nere
+const HM_B_ROOK = Int64[
+  -10,  0,  0,  10,  10,  0,  0,  -10,
  -5,  0,  0,  0,  0,  0,  0, -5,
  -5,  0,  0,  0,  0,  0,  0, -5,
  -5,  0,  0,  0,  0,  0,  0, -5,
@@ -520,7 +539,8 @@ HM_B_ROOK = [
   0,  0,  0,  0,  0,  0,  0,  0
 ]
 
-HM_W_QUEEN = [
+# regine bianche
+const HM_W_QUEEN = Int64[
 -20,-10,-10, -5, -5,-10,-10,-20,
 -10,  0,  0,  0,  0,  0,  0,-10,
 -10,  0,  5,  5,  5,  5,  0,-10,
@@ -531,7 +551,8 @@ HM_W_QUEEN = [
 -20,-10,-10, -5, -5,-10,-10,-20
 ]
 
-HM_B_QUEEN = [
+# regine nere
+const HM_B_QUEEN = Int64[
 -20,-10,-10, -5, -5,-10,-10,-20,
 -10,  0,  5,  0,  0,  0,  0,-10,
 -10,  5,  5,  5,  5,  5,  0,-10,
@@ -542,7 +563,8 @@ HM_B_QUEEN = [
 -20,-10,-10, -5, -5,-10,-10,-20
 ]
 
-HM_W_KING = [
+# re bianco
+const HM_W_KING = Int64[
 -30,-40,-40,-50,-50,-40,-40,-30,
 -30,-40,-40,-50,-50,-40,-40,-30,
 -30,-40,-40,-50,-50,-40,-40,-30,
@@ -550,11 +572,12 @@ HM_W_KING = [
 -20,-30,-30,-40,-40,-30,-30,-20,
 -10,-20,-20,-20,-20,-20,-20,-10,
  20, 20,  0,  0,  0,  0, 20, 20,
- 20, 30, 10,  0,  0, 10, 30, 20
+ 10, 30, 20,  -10,  0, -10, 30, 10
 ]
 
-HM_B_KING = [
- 20, 30, 10,  0,  0, 10, 30, 20,
+# re nero
+const HM_B_KING = Int64[
+ 10, 30, 20,  -10,  0, -10, 30, 10,
  20, 20,  0,  0,  0,  0, 20, 20,
 -10,-20,-20,-20,-20,-20,-20,-10,
 -20,-30,-30,-40,-40,-30,-30,-20,
@@ -563,3 +586,155 @@ HM_B_KING = [
 -30,-40,-40,-50,-50,-40,-40,-30,
 -30,-40,-40,-50,-50,-40,-40,-30
 ]
+
+# re bianco, finale di gioco
+const HM_W_KING_ENDGAME = Int64[
+-90,-50,-30,-20,-20,-30,-50,-90,
+-50,-20,-10,  0,  0,-10,-20,-50,
+-30,-10, 20, 30, 30, 20,-10,-30,
+-30,-10, 30, 40, 40, 30,-10,-30,
+-30,-10, 30, 40, 40, 30,-10,-30,
+-30,-10, 20, 30, 30, 20,-10,-30,
+-50,-30,  0,  0,  0,  0,-30,-50,
+-90,-50,-30,-30,-30,-30,-50,-90
+]
+
+# re nero, finale di gioco
+const HM_B_KING_ENDGAME = Int64[
+-90,-50,-30,-30,-30,-30,-50,-90,
+-50,-30,  0,  0,  0,  0,-30,-50,
+-30,-10, 20, 30, 30, 20,-10,-30,
+-30,-10, 30, 40, 40, 30,-10,-30,
+-30,-10, 30, 40, 40, 30,-10,-30,
+-30,-10, 20, 30, 30, 20,-10,-30,
+-50,-20,-10,  0,  0,-10,-20,-50,
+-90,-50,-30,-20,-20,-30,-50,-90
+]
+
+# pedoni bianchi passati
+const HM_W_PP = Int64[
+0,   0,   0,   0,   0,   0,   0,   0,
+160, 150, 150, 150, 150, 150, 150, 160,
+100, 80,  80,  80,  80,  80,  80,  100,
+60,  50,  50,  50,  50,  50,  50,  60,
+40,  30,  30,  30,  30,  30,  30,  40,
+20,  20,  20,  20,  20,  20,  20,  20,
+5,   5,   5,   5,   5,   5,   5,   5,
+0,   0,   0,   0,   0,   0,   0,   0
+]
+
+# pedoni neri passati
+const HM_B_PP = Int64[
+0,   0,   0,   0,   0,   0,   0,   0,
+5,   5,   5,   5,   5,   5,   5,   5,
+20,  20,  20,  20,  20,  20,  20,  20,
+40,  30,  30,  30,  30,  30,  30,  40,
+60,  50,  50,  50,  50,  50,  50,  60,
+100, 80,  80,  80,  80,  80,  80,  100,
+160, 150, 150, 150, 150, 150, 150, 160,
+0,   0,   0,   0,   0,   0,   0,   0
+]
+
+# funzione che serve a specchiare le mappe di calore introdotte, perché gli indici utilizzati per le case sono invertiti
+function flip_table!(table::Vector{Int64})
+    @assert length(table) == 64
+    for i in 1:32
+        table[i], table[65 - i] = table[65 - i], table[i]
+    end
+end
+
+flip_table!(HM_W_PAWN)
+flip_table!(HM_B_PAWN)
+flip_table!(HM_W_KNIGHT)
+flip_table!(HM_B_KNIGHT)
+flip_table!(HM_W_BISHOP)
+flip_table!(HM_B_BISHOP)
+flip_table!(HM_W_ROOK)
+flip_table!(HM_B_ROOK)
+flip_table!(HM_W_QUEEN)
+flip_table!(HM_B_QUEEN)
+flip_table!(HM_W_KING)
+flip_table!(HM_B_KING)
+flip_table!(HM_W_KING_ENDGAME)
+flip_table!(HM_B_KING_ENDGAME)
+flip_table!(HM_W_PP)
+flip_table!(HM_B_PP)
+
+# dagli indici alla notazione delle case
+ID_TO_NOTATION=[
+"h1","g1","f1","e1","d1","c1","b1","a1",
+"h2","g2","f2","e2","d2","c2","b2","a2",
+"h3","g3","f3","e3","d3","c3","b3","a3",
+"h4","g4","f4","e4","d4","c4","b4","a4",
+"h5","g5","f5","e5","d5","c5","b5","a5",
+"h6","g6","f6","e6","d6","c6","b6","a6",
+"h7","g7","f7","e7","d7","c7","b7","a7",
+"h8","g8","f8","e8","d8","c8","b8","a8"
+]
+
+# dalle notazioni delle case agli indici
+NOTATION_TO_ID = Dict(
+"h1" => 1,
+"g1" => 2,
+"f1" => 3,
+"e1" => 4,
+"d1" => 5,
+"c1" => 6,
+"b1" => 7,
+"a1" => 8,
+"h2" => 9,
+"g2" => 10,
+"f2" => 11,
+"e2" => 12,
+"d2" => 13,
+"c2" => 14,
+"b2" => 15,
+"a2" => 16,
+"h3" => 17,
+"g3" => 18,
+"f3" => 19,
+"e3" => 20,
+"d3" => 21,
+"c3" => 22,
+"b3" => 23,
+"a3" => 24,
+"h4" => 25,
+"g4" => 26,
+"f4" => 27,
+"e4" => 28,
+"d4" => 29,
+"c4" => 30,
+"b4" => 31,
+"a4" => 32,
+"h5" => 33,
+"g5" => 34,
+"f5" => 35,
+"e5" => 36,
+"d5" => 37,
+"c5" => 38,
+"b5" => 39,
+"a5" => 40,
+"h6" => 41,
+"g6" => 42,
+"f6" => 43,
+"e6" => 44,
+"d6" => 45,
+"c6" => 46,
+"b6" => 47,
+"a6" => 48,
+"h7" => 49,
+"g7" => 50,
+"f7" => 51,
+"e7" => 52,
+"d7" => 53,
+"c7" => 54,
+"b7" => 55,
+"a7" => 56,
+"h8" => 57,
+"g8" => 58,
+"f8" => 59,
+"e8" => 60,
+"d8" => 61,
+"c8" => 62,
+"b8" => 63,
+"a8" => 64)
