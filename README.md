@@ -1,13 +1,6 @@
 -------------------------
-Chess Engine in Julia
-powered by Machine Learning (hope so)
+Motore scacchistico in Julia: Jerry
 -------------------------
 
-This project is about creating an efficient move generator in Julia and using it as a basis for a Chess Engine.
-
-The chessboard representation chosen is ---> BitBoards -> https://www.chessprogramming.org/Bitboards
-
-current features:
-1) FEN to bitboard
-2) Magic Bitboards -> https://www.chessprogramming.org/Magic_Bitboards
-3) attack mask for every piece
+Questo è un progetto integrativo a una tesi di laurea in matematica.
+Lo scopo era creare un programma capace di analizzare una posizione di scacchi e di consigliare la miglior sequenza trovata.
