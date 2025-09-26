@@ -1,0 +1,28 @@
+[Event "*"]
+[Site "*"]
+[Date "2025.09.26"]
+[Time "16:48:26"]
+[Round "*"]
+[White "hm::Human"]
+[Black "MotoreJerry"]
+[Result "0-1"]
+[Termination "mate"]
+[ECO "A01"]
+[Opening "Nimzovich-Larsen attack"]
+[TimeControl "depth: 10"]
+[PlyCount "44"]
+
+1.b3 e5 2.e3 {A01: Nimzovich-Larsen attack, modern variation}  Nf6
+3.Bb2 Nc6 4.Nf3 e4
+5.Nd4 Bc5 6.Nxc6 dxc6
+7.Bc4 O-O 8.Nc3 b5
+9.Be2 b4 10.Na4 Bd6
+11.c3 c5 12.cxb4 cxb4
+13.Rc1 Qe7 14.Qc2 Bf5
+15.Nc5 Nd7 16.Nb7 Ne5
+17.Nxd6 cxd6 18.Ba6 Qg5
+19.Rg1 Nf3+ 20.gxf3 Qxg1+
+21.Ke2 exf3+ 22.Kxf3 Qg4#
+ 0-1
+
+

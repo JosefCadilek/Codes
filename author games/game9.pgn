@@ -1,0 +1,45 @@
+[Event "*"]
+[Site "*"]
+[Date "2025.09.26"]
+[Time "16:35:53"]
+[Round "*"]
+[White "MotoreJerry"]
+[Black "hm::Human"]
+[Result "1-0"]
+[Termination "mate"]
+[ECO "B12"]
+[Opening "Caro-Kann"]
+[TimeControl "depth: 10"]
+[PlyCount "106"]
+[FEN "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 2"]
+[SetUp "1"]
+
+1.c6 d4 2.d5 e5
+3.Bf5 {B12: Caro-Kann, advance variation}  Bd3 4.Bxd3 Qxd3
+5.e6 Nf3 6.a6 Nc3
+7.c5 Bg5 8.Qb6 O-O-O
+9.Nc6 dxc5 10.Bxc5 Na4
+11.Qa5 Nxc5 12.Qxc5 Qb3
+13.b5 Be3 14.Qe7 Rhe1
+15.Nh6 Bg5 16.Qc7 Bxh6
+17.gxh6 Qa3 18.a5 Qc5
+19.b4 Nd4 20.Rc8 Nb5
+21.Qe7 Nd6+ 22.Kd7 Qe3
+23.Rc7 Nb5 24.Rb7 Nd6
+25.Rhb8 Nxb7 26.Rxb7 Qxh6
+27.b3 axb3 28.a4 bxa4
+29.Qb4 b3 30.Nd4 Qxh7
+31.Nxb3+ cxb3 32.Rc7+ Kb2
+33.Qc3+ Ka3 34.Qc5+ Ka2
+35.Qxf2+ Ka3 36.Qc5+ Kb2
+37.Qf2+ Ka3 38.Rc2 Qd3
+39.Qc5+ b4 40.Rc3+ Ka2
+41.Qxb4 Qb5+ 42.Qxb5 axb5
+43.Kc8 Kb2 44.Rc7 Rc1
+45.Rxc1 Rxc1+ 46.Kb7 Rc6
+47.d4 Kc2 48.f6 exf6
+49.e5 f7 50.e4 f8=Q
+51.d3+ Kc3 52.d2 Qc8+
+53.Ka7 Ra6# 1-0
+
+
