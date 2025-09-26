@@ -1,0 +1,31 @@
+[Event "*"]
+[Site "*"]
+[Date "2025.09.06"]
+[Time "12:21:03"]
+[Round "*"]
+[White "RadianceEngine"]
+[Black "MotoreJerry"]
+[Result "0-1"]
+[Termination "mate"]
+[ECO "B00"]
+[Opening "KP"]
+[TimeControl "depth: 10"]
+[PlyCount "58"]
+
+1.e4 Nc6 2.Nf3 d5 {B00: KP, Nimzovich defence} 
+3.exd5 Qxd5 4.Nc3 Qe6+
+5.Be2 Bd7 6.d4 Qf5
+7.O-O O-O-O 8.a3 Nh6
+9.d5 Nb8 10.Bxh6 gxh6
+11.Nd4 Qf6 12.Ndb5 Bxb5
+13.Bxb5 Rg8 14.Qh5 Nd7
+15.Rae1 Nb6 16.Bd3 Kb8
+17.h4 Rg7 18.Rd1 e5
+19.dxe6 fxe6 20.Rfe1 Be7
+21.Re5 Rdg8 22.g3 Bd6
+23.Re3 Bxg3 24.Rxg3 Rxg3+
+25.fxg3 Rxg3+ 26.Kh1 Qf2
+27.Qe8+ Nc8 28.Qxc8+ Kxc8
+29.Be4 Rh3# 0-1
+
+

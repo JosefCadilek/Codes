@@ -1,0 +1,36 @@
+[Event "*"]
+[Site "*"]
+[Date "2025.09.09"]
+[Time "11:08:57"]
+[Round "*"]
+[White "MotoreJerry"]
+[Black "FataliiBot"]
+[Result "0-1"]
+[Termination "mate"]
+[ECO "A00"]
+[Opening "Dunst (Sleipner, Heinrichsen) opening"]
+[TimeControl "depth: 10"]
+[PlyCount "78"]
+
+1.Nc3 d5 {A00: Dunst (Sleipner, Heinrichsen) opening}  2.Nf3 d4
+3.Nb5 c5 4.e4 Nc6
+5.Bc4 a6 6.Na3 Nf6
+7.d3 g6 8.Bf4 Bg7
+9.Bb3 O-O 10.Nc4 Nh5
+11.Qd2 b5 12.Nce5 Nxf4
+13.Nxc6 Nxg2+ 14.Kd1 Qc7
+15.Qg5 Qxc6 16.Bd5 Qf6
+17.Qxg2 Rb8 18.Re1 c4
+19.dxc4 bxc4 20.Rb1 c3
+21.Bb3 Bb7 22.bxc3 dxc3
+23.Re2 a5 24.Qg3 Ba6
+25.Ke1 a4 26.e5 Qc6
+27.Bxf7+ Kh8 28.Rxb8 Rxb8
+29.Bb3 axb3 30.axb3 Rxb3
+31.Kf1 Rb1+ 32.Kg2 Bxe2
+33.Qf4 Bxf3+ 34.Qxf3 Rg1+
+35.Kxg1 Qxf3 36.h4 Bxe5
+37.h5 Qh3 38.hxg6 hxg6
+39.f4 Bd4# 0-1
+
+

@@ -1,0 +1,48 @@
+[Event "*"]
+[Site "*"]
+[Date "2025.09.06"]
+[Time "11:53:16"]
+[Round "*"]
+[White "MotoreJerry"]
+[Black "RadianceEngine"]
+[Result "1-0"]
+[Termination "mate"]
+[ECO "B10"]
+[Opening "Caro-Kann"]
+[TimeControl "depth: 10"]
+[PlyCount "125"]
+
+1.Nc3 d5 {A00: Dunst (Sleipner, Heinrichsen) opening}  2.Nf3 c6
+3.e4 dxe4 {B10: Caro-Kann, two knights variation}  4.Nxe4 Nf6
+5.Nxf6+ exf6 6.d4 Bd6
+7.Bc4 O-O 8.O-O Re8
+9.Qd3 Nd7 10.Bd2 Nb6
+11.Bb3 Nd5 12.Rfe1 Be6
+13.Re2 a5 14.c4 Nb4
+15.Bxb4 Bxb4 16.a3 Bd6
+17.Rae1 Qd7 18.d5 cxd5
+19.cxd5 Bg4 20.Bc2 g6
+21.Bb3 Rxe2 22.Qxe2 Qf5
+23.Qe4 Qxe4 24.Rxe4 Bxf3
+25.gxf3 Kg7 26.Kg2 Rc8
+27.f4 Rc1 28.Kf3 Rb1
+29.Re2 Bxa3 30.bxa3 Rxb3+
+31.Re3 Rb6 32.Rd3 Rd6
+33.f5 a4 34.Ke4 h5
+35.Rd4 b5 36.Rb4 g5
+37.Rxb5 Rd8 38.Kd4 h4
+39.Rb2 h3 40.Re2 Rc8
+41.d6 Ra8 42.Re3 Ra6
+43.Kd5 Ra7 44.Rxh3 Ra5+
+45.Kc6 Ra6+ 46.Kc7 g4
+47.Rd3 Ra7+ 48.Kc6 Ra8
+49.d7 Kh6 50.d8=Q Rxd8
+51.Rxd8 Kh5 52.Kd5 Kg5
+53.Ke4 Kh6 54.Ra8 Kg7
+55.Kd5 Kh6 56.Rg8 Kh7
+57.Rxg4 Kh6 58.h3 Kh5
+59.Kd6 Kh6 60.Ke7 Kh7
+61.Kxf6 Kh8 62.Kxf7 Kh7
+63.Rh4# 1-0
+
+
