@@ -1,0 +1,25 @@
+[Event "*"]
+[Site "*"]
+[Date "2025.09.24"]
+[Time "19:40:13"]
+[Round "*"]
+[White "MotoreJerry"]
+[Black "hm::Human"]
+[Result "1-0"]
+[Termination "mate"]
+[ECO "C25"]
+[Opening "Vienna game, Max Lange defence"]
+[TimeControl "depth: 10"]
+[PlyCount "35"]
+
+1.Nc3 Nc6 {A00: Dunst (Sleipner, Heinrichsen) opening}  2.e4 e5
+3.Bb5 {C25: Vienna game, Max Lange defence}  a6 4.Bxc6 dxc6
+5.d3 Nf6 6.Nf3 Bd6
+7.Be3 h6 8.d4 exd4
+9.Qxd4 c5 10.Qd3 Qe7
+11.O-O-O O-O 12.Rhe1 b5
+13.e5 Bxe5 14.Bxh6 c4
+15.Qd2 Bxc3 16.Qg5 Bxb2+
+17.Kb1 Qxe1 18.Qxg7# 1-0
+
+

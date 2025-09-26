@@ -1,0 +1,38 @@
+[Event "*"]
+[Site "*"]
+[Date "2025.09.24"]
+[Time "19:51:13"]
+[Round "*"]
+[White "hm::Human"]
+[Black "MotoreJerry"]
+[Result "0-1"]
+[Termination "mate"]
+[ECO "B00"]
+[Opening "KP"]
+[TimeControl "depth: 10"]
+[PlyCount "84"]
+
+1.e4 Nc6 2.d4 d5 {B00: KP, Nimzovich defence} 
+3.exd5 Qxd5 4.Nf3 Bg4
+5.Nc3 Qe6+ 6.Be3 O-O-O
+7.Be2 Bxf3 8.gxf3 Qg6
+9.Qd3 Qxd3 10.Bxd3 Nxd4
+11.O-O-O c5 12.Bf4 f6
+13.Rhe1 e5 14.Bg3 h5
+15.h3 Kb8 16.a4 Bd6
+17.a5 h4 18.Bh2 Nxf3
+19.Rh1 Nxh2 20.Rxh2 e4
+21.Rg2 exd3 22.Rxd3 c4
+23.Rd1 g5 24.Ne4 Bf4+
+25.Nd2 Ne7 26.f3 Nd5
+27.Kb1 Ne3 28.Rdg1 Nxg2
+29.Rxg2 Bxd2 30.Re2 Rhe8
+31.Rxe8 Rxe8 32.b3 Bxa5
+33.bxc4 Re3 34.Kb2 Rxf3
+35.c5 g4 36.hxg4 h3
+37.g5 fxg5 38.c6 h2
+39.c7+ Bxc7 40.c4 h1=Q
+41.Kc2 Qg2+ 42.Kd1 Rf1#
+ 0-1
+
+

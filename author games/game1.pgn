@@ -1,0 +1,31 @@
+[Event "*"]
+[Site "*"]
+[Date "2025.09.23"]
+[Time "18:38:13"]
+[Round "*"]
+[White "MotoreJerry"]
+[Black "hm::Human"]
+[Result "1-0"]
+[Termination "mate"]
+[ECO "A00"]
+[Opening "Dunst (Sleipner, Heinrichsen) opening"]
+[TimeControl "depth: 10"]
+[PlyCount "57"]
+
+1.Nc3 Nf6 {A00: Dunst (Sleipner, Heinrichsen) opening}  2.Nf3 b6
+3.e4 d6 4.d4 Bb7
+5.d5 g6 6.Bb5+ Nbd7
+7.Nd4 Bg7 8.Bc6 Bxc6
+9.Nxc6 Qc8 10.O-O Ne5
+11.Nxe5 dxe5 12.f4 exf4
+13.Bxf4 O-O 14.Be5 Qg4
+15.Bxc7 Qxd1 16.Raxd1 Rac8
+17.Be5 h5 18.d6 exd6
+19.Bxf6 Bxf6 20.Rxf6 Kg7
+21.Rfxd6 Kh6 22.Rd7 a6
+23.R1d6 Rb8 24.Nd5 f5
+25.Ne7 fxe4 26.Rxg6+ Kh7
+27.Rd5 Rf5 28.Rxf5 Kh8
+29.Rxh5# 1-0
+
+

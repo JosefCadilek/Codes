@@ -1,0 +1,34 @@
+[Event "*"]
+[Site "*"]
+[Date "2025.09.24"]
+[Time "19:29:06"]
+[Round "*"]
+[White "hm::Human"]
+[Black "MotoreJerry"]
+[Result "0-1"]
+[Termination "mate"]
+[ECO "A45"]
+[Opening "Queen's pawn game"]
+[TimeControl "depth: 10"]
+[PlyCount "70"]
+
+1.d4 Nf6 2.Bf4 {A45: Queen's pawn game}  e6
+3.Nf3 d5 4.e3 Bd6
+5.Bg3 Bxg3 6.hxg3 Nc6
+7.a3 Qe7 8.Bd3 e5
+9.Nxe5 Nxe5 10.dxe5 Qxe5
+11.O-O Qxb2 12.Nd2 Qe5
+13.Nf3 Qd6 14.e4 Nxe4
+15.Re1 f5 16.Ng5 O-O
+17.Nxe4 fxe4 18.Be2 Qc5
+19.Rf1 e3 20.f3 Bf5
+21.Rc1 Rad8 22.Qe1 a5
+23.g4 Bg6 24.Qh4 Qxa3
+25.c4 d4 26.f4 d3
+27.f5 dxe2 28.fxg6 exf1=Q+
+29.Rxf1 Rxf1+ 30.Kxf1 Rd1+
+31.Ke2 Qd3+ 32.Kf3 e2+
+33.Kf4 Qd4+ 34.Kf5 Rf1+
+35.Kg5 Qe5# 0-1
+
+
